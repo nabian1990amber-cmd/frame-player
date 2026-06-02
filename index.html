@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="googlebot" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>逐帧播放器</title>
+<style>
+  :root {
+    --bg: #1a1a2e;
+    --surface: #16213e;
+    --border: #0f3460;
+    --accent: #e94560;
+    --accent-hover: #ff6b81;
+    --text: #eee;
+    --text-dim: #8899aa;
+    --green: #2ed573;
+    --blue: #1e90ff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    user-select: none;
+  }
+  h1 {
+    font-size: 22px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    letter-spacing: 1px;
+  }
+  h1 span { color: var(--accent); }
+
+  /* 上传区 */
+  #drop-zone {
+    width: 100%;
+    max-width: 960px;
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 60px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .2s, background .2s;
+    margin-bottom: 16px;
+  }
+  #drop-zone:hover, #drop-zone.dragover {
+    border-color: var(--accent);
+    background: rgba(233,69,96,.06);
+  }
+  #drop-zone p { color: var(--text-dim); font-size: 15px; }
+  #drop-zone .icon { font-size: 48px; margin-bottom: 12px; }
+  #drop-zone input { display: none; }
+
+  /* 播放器容器 */
+  #player-wrap {
+    display: none;
+    width: 100%;
+    max-width: 960px;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+  #player-wrap.active { display: flex; }
+
+  /* 视频 / Canvas */
+  .video-box {
+    position: relative;
+    width: 100%;
+    background: #000;
+    border-radius: 8px;
+    overflow: hidden;
+    line-height: 0;
+  }
+  #video-el {
+    width: 100%;
+    display: block;
+  }
+  canvas#frame-canvas {
+    width: 100%;
+    display: none;
+    cursor: crosshair;
+  }
+  .video-box.canvas-mode #video-el { display: none; }
+  .video-box.canvas-mode #frame-canvas { display: block; }
+
+  /* 帧信息条 */
+  .info-bar {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 12px;
+    background: var(--surface);
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--text-dim);
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .info-bar .tag {
+    background: var(--border);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 12px;
+    color: var(--text);
+  }
+
+  /* 进度条 */
+  .progress-wrap {
+    width: 100%;
+    height: 6px;
+    background: var(--surface);
+    border-radius: 3px;
+    cursor: pointer;
+    position: relative;
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 3px;
+    width: 0;
+    transition: width .05s linear;
+  }
+  .progress-wrap:hover .progress-fill { background: var(--accent-hover); }
+
+  /* 时间轴缩略 */
+  .timeline-strip {
+    width: 100%;
+    height: 48px;
+    background: var(--surface);
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+    cursor: pointer;
+  }
+  .timeline-strip canvas {
+    width: 100%;
+    height: 100%;
+  }
+  .timeline-cursor {
+    position: absolute;
+    top: 0;
+    width: 2px;
+    height: 100%;
+    background: var(--accent);
+    pointer-events: none;
+    transition: left .05s linear;
+  }
+
+  /* 控制栏 */
+  .controls {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all .15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn:active { transform: scale(.96); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: #fff; }
+  .btn .key {
+    font-size: 10px;
+    background: rgba(255,255,255,.12);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: monospace;
+  }
+
+  /* 速度选择 */
+  .speed-group {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+  }
+  .speed-group label {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-right: 4px;
+  }
+  .speed-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 4px 8px;
+    border-radius: 5px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .speed-btn:hover { border-color: var(--accent); color: var(--text); }
+  .speed-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  /* 缩放信息 */
+  .zoom-info {
+    font-size: 12px;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* 帧截图预览 */
+  #screenshot-toast {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    background: var(--surface);
+    border: 1px solid var(--green);
+    border-radius: 10px;
+    padding: 10px;
+    display: none;
+    flex-direction: column;
+    gap: 6px;
+    z-index: 999;
+    box-shadow: 0 8px 30px rgba(0,0,0,.5);
+  }
+  #screenshot-toast img {
+    max-width: 200px;
+    border-radius: 6px;
+  }
+  #screenshot-toast span {
+    font-size: 12px;
+    color: var(--green);
+    text-align: center;
+  }
+
+  /* URL 输入 */
+  .url-bar {
+    width: 100%;
+    max-width: 960px;
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .url-bar input {
+    flex: 1;
+    padding: 10px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 14px;
+    outline: none;
+    transition: border-color .2s;
+  }
+  .url-bar input:focus { border-color: var(--accent); }
+  .url-bar input::placeholder { color: var(--text-dim); }
+
+  /* 快捷键提示 */
+  .shortcuts-hint {
+    width: 100%;
+    max-width: 960px;
+    margin-top: 8px;
+    padding: 10px 14px;
+    background: var(--surface);
+    border-radius: 8px;
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.8;
+  }
+  .shortcuts-hint kbd {
+    background: var(--border);
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-family: monospace;
+    color: var(--text);
+    font-size: 11px;
+  }
+
+  /* 帧率设置 */
+  .fps-setting {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .fps-setting label { font-size: 12px; color: var(--text-dim); }
+  .fps-setting input {
+    width: 60px;
+    padding: 4px 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--text);
+    font-size: 12px;
+    text-align: center;
+    outline: none;
+  }
+  .fps-setting input:focus { border-color: var(--accent); }
+</style>
+</head>
+<body>
+
+<h1>🎞️ 逐帧<span>播放器</span></h1>
+
+<!-- URL 输入 -->
+<div class="url-bar">
+  <input type="text" id="url-input" placeholder="粘贴视频 URL（支持 mp4/webm/ogg/m3u8）...">
+  <button class="btn primary" id="url-load-btn">加载</button>
+</div>
+
+<!-- 拖拽上传区 -->
+<div id="drop-zone">
+  <div class="icon">📁</div>
+  <p>拖拽视频文件到这里，或点击选择文件</p>
+  <p style="margin-top:6px;font-size:12px;color:var(--text-dim)">支持 mp4 / webm / ogg / mov</p>
+  <input type="file" id="file-input" accept="video/*">
+</div>
+
+<!-- 播放器 -->
+<div id="player-wrap">
+  <div class="video-box" id="video-box">
+    <video id="video-el" preload="auto"></video>
+    <canvas id="frame-canvas"></canvas>
+  </div>
+
+  <!-- 信息栏 -->
+  <div class="info-bar">
+    <div>
+      帧: <span class="tag" id="info-frame">0 / 0</span>
+      时间: <span class="tag" id="info-time">00:00.000 / 00:00.000</span>
+    </div>
+    <div>
+      分辨率: <span class="tag" id="info-res">-</span>
+      帧率: <span class="tag" id="info-fps">-</span>
+    </div>
+  </div>
+
+  <!-- 进度条 -->
+  <div class="progress-wrap" id="progress-bar">
+    <div class="progress-fill" id="progress-fill"></div>
+  </div>
+
+  <!-- 时间轴缩略图 -->
+  <div class="timeline-strip" id="timeline-strip">
+    <canvas id="timeline-canvas"></canvas>
+    <div class="timeline-cursor" id="timeline-cursor"></div>
+  </div>
+
+  <!-- 控制按钮 -->
+  <div class="controls">
+    <button class="btn" id="btn-prev-10" title="后退10帧">⏪ -10 <span class="key">⇧←</span></button>
+    <button class="btn" id="btn-prev" title="上一帧">◀ 上一帧 <span class="key">←</span></button>
+    <button class="btn primary" id="btn-play" title="播放/暂停">▶ 播放 <span class="key">Space</span></button>
+    <button class="btn" id="btn-next" title="下一帧">下一帧 ▶ <span class="key">→</span></button>
+    <button class="btn" id="btn-next-10" title="前进10帧">+10 ⏩ <span class="key">⇧→</span></button>
+    <button class="btn" id="btn-start" title="跳到开头">⏮ <span class="key">Home</span></button>
+    <button class="btn" id="btn-end" title="跳到末尾">⏭ <span class="key">End</span></button>
+    <button class="btn" id="btn-screenshot" title="截图当前帧">📷 截帧 <span class="key">S</span></button>
+  </div>
+
+  <div class="controls" style="margin-top:4px;">
+    <div class="fps-setting">
+      <label>帧率(FPS):</label>
+      <input type="number" id="fps-input" value="30" min="1" max="120" step="1">
+    </div>
+
+    <div class="speed-group">
+      <label>播放速度:</label>
+      <button class="speed-btn" data-speed="0.1">0.1x</button>
+      <button class="speed-btn" data-speed="0.25">0.25x</button>
+      <button class="speed-btn" data-speed="0.5">0.5x</button>
+      <button class="speed-btn active" data-speed="1">1x</button>
+      <button class="speed-btn" data-speed="2">2x</button>
+    </div>
+
+    <div class="zoom-info">
+      <button class="btn" id="btn-zoom-in" title="放大">🔍+</button>
+      <span id="zoom-level">100%</span>
+      <button class="btn" id="btn-zoom-out" title="缩小">🔍-</button>
+      <button class="btn" id="btn-zoom-reset" title="重置">1:1</button>
+    </div>
+
+    <button class="btn" id="btn-new" title="换一个视频">📂 换视频</button>
+  </div>
+
+  <!-- 快捷键提示 -->
+  <div class="shortcuts-hint">
+    快捷键：
+    <kbd>Space</kbd> 播放/暂停 &nbsp;
+    <kbd>←</kbd> 上一帧 &nbsp;
+    <kbd>→</kbd> 下一帧 &nbsp;
+    <kbd>Shift+←</kbd> -10帧 &nbsp;
+    <kbd>Shift+→</kbd> +10帧 &nbsp;
+    <kbd>Home</kbd> 跳到开头 &nbsp;
+    <kbd>End</kbd> 跳到末尾 &nbsp;
+    <kbd>S</kbd> 截帧 &nbsp;
+    <kbd>,</kbd> 上一帧 &nbsp;
+    <kbd>.</kbd> 下一帧 &nbsp;
+    <kbd>+/-</kbd> 放大/缩小
+  </div>
+</div>
+
+<!-- 截图 toast -->
+<div id="screenshot-toast">
+  <img id="screenshot-img" src="">
+  <span>✅ 已截取当前帧</span>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // ========== DOM ==========
+  const dropZone = document.getElementById('drop-zone');
+  const fileInput = document.getElementById('file-input');
+  const urlInput = document.getElementById('url-input');
+  const urlLoadBtn = document.getElementById('url-load-btn');
+  const playerWrap = document.getElementById('player-wrap');
+  const videoBox = document.getElementById('video-box');
+  const video = document.getElementById('video-el');
+  const canvas = document.getElementById('frame-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const infoFrame = document.getElementById('info-frame');
+  const infoTime = document.getElementById('info-time');
+  const infoRes = document.getElementById('info-res');
+  const infoFps = document.getElementById('info-fps');
+
+  const progressBar = document.getElementById('progress-bar');
+  const progressFill = document.getElementById('progress-fill');
+
+  const timelineStrip = document.getElementById('timeline-strip');
+  const timelineCanvas = document.getElementById('timeline-canvas');
+  const timelineCtx = timelineCanvas.getContext('2d');
+  const timelineCursor = document.getElementById('timeline-cursor');
+
+  const btnPlay = document.getElementById('btn-play');
+  const btnPrev = document.getElementById('btn-prev');
+  const btnNext = document.getElementById('btn-next');
+  const btnPrev10 = document.getElementById('btn-prev-10');
+  const btnNext10 = document.getElementById('btn-next-10');
+  const btnStart = document.getElementById('btn-start');
+  const btnEnd = document.getElementById('btn-end');
+  const btnScreenshot = document.getElementById('btn-screenshot');
+  const btnNew = document.getElementById('btn-new');
+  const btnZoomIn = document.getElementById('btn-zoom-in');
+  const btnZoomOut = document.getElementById('btn-zoom-out');
+  const btnZoomReset = document.getElementById('btn-zoom-reset');
+  const zoomLevel = document.getElementById('zoom-level');
+  const fpsInput = document.getElementById('fps-input');
+  const speedBtns = document.querySelectorAll('.speed-btn');
+
+  const screenshotToast = document.getElementById('screenshot-toast');
+  const screenshotImg = document.getElementById('screenshot-img');
+
+  // ========== State ==========
+  let fps = 30;
+  let frameDuration = 1 / fps;
+  let totalFrames = 0;
+  let currentZoom = 1;
+  let isPlaying = false;
+  let videoReady = false;
+  let timelineThumbs = [];
+  let objectUrl = null;
+
+  // ========== 帧率 ==========
+  fpsInput.addEventListener('change', function() {
+    const v = parseInt(this.value, 10);
+    if (v > 0 && v <= 120) {
+      fps = v;
+      frameDuration = 1 / fps;
+      totalFrames = Math.ceil(video.duration * fps);
+      infoFps.textContent = fps + ' fps';
+      updateInfo();
+    }
+  });
+
+  // ========== 文件加载 ==========
+  dropZone.addEventListener('click', function() { fileInput.click(); });
+  dropZone.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    dropZone.classList.add('dragover');
+  });
+  dropZone.addEventListener('dragleave', function() {
+    dropZone.classList.remove('dragover');
+  });
+  dropZone.addEventListener('drop', function(e) {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    if (e.dataTransfer.files.length > 0) {
+      loadFile(e.dataTransfer.files[0]);
+    }
+  });
+  fileInput.addEventListener('change', function() {
+    if (this.files.length > 0) loadFile(this.files[0]);
+  });
+  urlLoadBtn.addEventListener('click', loadFromUrl);
+  urlInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') loadFromUrl();
+  });
+
+  function loadFromUrl() {
+    const url = urlInput.value.trim();
+    if (!url) return;
+    cleanupObjectUrl();
+    video.src = url;
+    video.load();
+    showPlayer();
+  }
+
+  function loadFile(file) {
+    cleanupObjectUrl();
+    objectUrl = URL.createObjectURL(file);
+    video.src = objectUrl;
+    video.load();
+    showPlayer();
+  }
+
+  function cleanupObjectUrl() {
+    if (objectUrl) {
+      URL.revokeObjectURL(objectUrl);
+      objectUrl = null;
+    }
+  }
+
+  function showPlayer() {
+    dropZone.style.display = 'none';
+    playerWrap.classList.add('active');
+    videoReady = false;
+  }
+
+  // 换视频
+  btnNew.addEventListener('click', function() {
+    video.pause();
+    video.removeAttribute('src');
+    video.load();
+    isPlaying = false;
+    videoReady = false;
+    btnPlay.innerHTML = '▶ 播放 <span class="key">Space</span>';
+    playerWrap.classList.remove('active');
+    videoBox.classList.remove('canvas-mode');
+    dropZone.style.display = '';
+    cleanupObjectUrl();
+    urlInput.value = '';
+    timelineThumbs = [];
+  });
+
+  // ========== 视频就绪 ==========
+  video.addEventListener('loadedmetadata', function() {
+    fps = parseInt(fpsInput.value, 10) || 30;
+    frameDuration = 1 / fps;
+    totalFrames = Math.ceil(video.duration * fps);
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    infoRes.textContent = video.videoWidth + '×' + video.videoHeight;
+    infoFps.textContent = fps + ' fps';
+    videoReady = true;
+    video.pause();
+    video.currentTime = 0;
+
+    generateTimeline();
+    updateInfo();
+  });
+
+  video.addEventListener('loadeddata', function() {
+    // 确保第一帧绘制出来
+    if (videoReady) {
+      drawFrame();
+      videoBox.classList.add('canvas-mode');
+    }
+  });
+
+  video.addEventListener('seeked', function() {
+    drawFrame();
+    if (!isPlaying) {
+      videoBox.classList.add('canvas-mode');
+    }
+    updateInfo();
+  });
+
+  video.addEventListener('timeupdate', function() {
+    updateInfo();
+    updateProgress();
+    updateTimelineCursor();
+  });
+
+  video.addEventListener('ended', function() {
+    isPlaying = false;
+    btnPlay.innerHTML = '▶ 播放 <span class="key">Space</span>';
+  });
+
+  // ========== 信息更新 ==========
+  function getCurrentFrame() {
+    return Math.round(video.currentTime * fps);
+  }
+
+  function formatTime(t) {
+    const m = Math.floor(t / 60);
+    const s = t - m * 60;
+    return String(m).padStart(2, '0') + ':' + s.toFixed(3).padStart(6, '0');
+  }
+
+  function updateInfo() {
+    if (!videoReady) return;
+    const cf = getCurrentFrame();
+    infoFrame.textContent = cf + ' / ' + totalFrames;
+    infoTime.textContent = formatTime(video.currentTime) + ' / ' + formatTime(video.duration);
+    updateProgress();
+    updateTimelineCursor();
+  }
+
+  function updateProgress() {
+    if (!videoReady) return;
+    const pct = (video.currentTime / video.duration) * 100;
+    progressFill.style.width = pct + '%';
+  }
+
+  function updateTimelineCursor() {
+    if (!videoReady) return;
+    const pct = (video.currentTime / video.duration) * 100;
+    timelineCursor.style.left = pct + '%';
+  }
+
+  // ========== 绘帧到 Canvas ==========
+  function drawFrame() {
+    if (!videoReady) return;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  }
+
+  // ========== 逐帧操作 ==========
+  function stepFrame(n) {
+    if (!videoReady) return;
+    pauseVideo();
+    videoBox.classList.add('canvas-mode');
+    let target = video.currentTime + n * frameDuration;
+    target = Math.max(0, Math.min(target, video.duration));
+    video.currentTime = target;
+  }
+
+  function seekToFrame(f) {
+    if (!videoReady) return;
+    pauseVideo();
+    videoBox.classList.add('canvas-mode');
+    f = Math.max(0, Math.min(f, totalFrames));
+    video.currentTime = f * frameDuration;
+  }
+
+  function seekToTime(t) {
+    if (!videoReady) return;
+    t = Math.max(0, Math.min(t, video.duration));
+    video.currentTime = t;
+    if (!isPlaying) {
+      videoBox.classList.add('canvas-mode');
+    }
+  }
+
+  // ========== 播放控制 ==========
+  function togglePlay() {
+    if (!videoReady) return;
+    if (isPlaying) {
+      pauseVideo();
+    } else {
+      playVideo();
+    }
+  }
+
+  function playVideo() {
+    videoBox.classList.remove('canvas-mode');
+    video.play();
+    isPlaying = true;
+    btnPlay.innerHTML = '⏸ 暂停 <span class="key">Space</span>';
+  }
+
+  function pauseVideo() {
+    video.pause();
+    isPlaying = false;
+    btnPlay.innerHTML = '▶ 播放 <span class="key">Space</span>';
+    // 切到 canvas 模式显示当前帧
+    videoBox.classList.add('canvas-mode');
+    // 延迟绘制确保 video 已暂停
+    requestAnimationFrame(function() { drawFrame(); });
+  }
+
+  // ========== 速度控制 ==========
+  speedBtns.forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      speedBtns.forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      video.playbackRate = parseFloat(btn.dataset.speed);
+    });
+  });
+
+  // ========== 缩放 ==========
+  function setZoom(z) {
+    z = Math.max(0.25, Math.min(z, 4));
+    currentZoom = z;
+    const box = document.querySelector('.video-box');
+    box.style.maxWidth = (960 * z) + 'px';
+    zoomLevel.textContent = Math.round(z * 100) + '%';
+  }
+
+  btnZoomIn.addEventListener('click', function() { setZoom(currentZoom + 0.25); });
+  btnZoomOut.addEventListener('click', function() { setZoom(currentZoom - 0.25); });
+  btnZoomReset.addEventListener('click', function() { setZoom(1); });
+
+  // ========== 进度条点击 ==========
+  progressBar.addEventListener('click', function(e) {
+    if (!videoReady) return;
+    const rect = progressBar.getBoundingClientRect();
+    const pct = (e.clientX - rect.left) / rect.width;
+    seekToTime(pct * video.duration);
+  });
+
+  // ========== 时间轴 ==========
+  function generateTimeline() {
+    const count = 20;
+    const interval = video.duration / count;
+    timelineThumbs = [];
+    const w = timelineStrip.clientWidth;
+    const h = timelineStrip.clientHeight;
+    timelineCanvas.width = w * 2;
+    timelineCanvas.height = h * 2;
+    timelineCtx.scale(2, 2);
+
+    let loaded = 0;
+    const tempVideo = document.createElement('video');
+    tempVideo.src = video.src;
+    tempVideo.preload = 'auto';
+    tempVideo.muted = true;
+
+    const thumbW = w / count;
+    const thumbH = h;
+
+    tempVideo.addEventListener('loadedmetadata', function() {
+      captureNext(0);
+    });
+
+    function captureNext(i) {
+      if (i >= count) {
+        tempVideo.remove();
+        return;
+      }
+      tempVideo.currentTime = i * interval;
+      tempVideo.addEventListener('seeked', function handler() {
+        tempVideo.removeEventListener('seeked', handler);
+        timelineCtx.drawImage(tempVideo, i * thumbW, 0, thumbW, thumbH);
+        captureNext(i + 1);
+      });
+    }
+  }
+
+  timelineStrip.addEventListener('click', function(e) {
+    if (!videoReady) return;
+    const rect = timelineStrip.getBoundingClientRect();
+    const pct = (e.clientX - rect.left) / rect.width;
+    seekToTime(pct * video.duration);
+  });
+
+  // ========== 截帧 ==========
+  function screenshotFrame() {
+    if (!videoReady) return;
+    // 确保 canvas 有当前帧
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL('image/png');
+    // 弹出预览
+    screenshotImg.src = dataUrl;
+    screenshotToast.style.display = 'flex';
+    setTimeout(function() { screenshotToast.style.display = 'none'; }, 3000);
+    // 下载
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    const frame = getCurrentFrame();
+    a.download = 'frame_' + frame + '_' + formatTime(video.currentTime).replace(':', '-') + '.png';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+
+  // ========== 按钮事件 ==========
+  btnPlay.addEventListener('click', togglePlay);
+  btnPrev.addEventListener('click', function() { stepFrame(-1); });
+  btnNext.addEventListener('click', function() { stepFrame(1); });
+  btnPrev10.addEventListener('click', function() { stepFrame(-10); });
+  btnNext10.addEventListener('click', function() { stepFrame(10); });
+  btnStart.addEventListener('click', function() { seekToFrame(0); });
+  btnEnd.addEventListener('click', function() { seekToFrame(totalFrames); });
+  btnScreenshot.addEventListener('click', screenshotFrame);
+
+  // ========== 键盘快捷键 ==========
+  document.addEventListener('keydown', function(e) {
+    // 跳过输入框
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (!videoReady) return;
+
+    switch (e.key) {
+      case ' ':
+        e.preventDefault();
+        togglePlay();
+        break;
+      case 'ArrowLeft':
+        e.preventDefault();
+        stepFrame(e.shiftKey ? -10 : -1);
+        break;
+      case 'ArrowRight':
+        e.preventDefault();
+        stepFrame(e.shiftKey ? 10 : 1);
+        break;
+      case ',':
+        e.preventDefault();
+        stepFrame(-1);
+        break;
+      case '.':
+        e.preventDefault();
+        stepFrame(1);
+        break;
+      case 'Home':
+        e.preventDefault();
+        seekToFrame(0);
+        break;
+      case 'End':
+        e.preventDefault();
+        seekToFrame(totalFrames);
+        break;
+      case 's':
+      case 'S':
+        e.preventDefault();
+        screenshotFrame();
+        break;
+      case '+':
+      case '=':
+        e.preventDefault();
+        setZoom(currentZoom + 0.25);
+        break;
+      case '-':
+      case '_':
+        e.preventDefault();
+        setZoom(currentZoom - 0.25);
+        break;
+    }
+  });
+
+  // ========== 鼠标滚轮缩放 ==========
+  videoBox.addEventListener('wheel', function(e) {
+    e.preventDefault();
+    if (e.deltaY < 0) {
+      setZoom(currentZoom + 0.1);
+    } else {
+      setZoom(currentZoom - 0.1);
+    }
+  }, { passive: false });
+
+})();
+</script>
+</body>
+</html>
