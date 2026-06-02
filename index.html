@@ -182,6 +182,7 @@
   .btn:active { transform: scale(.96); }
   .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
   .btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: #fff; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
   .btn .key {
     font-size: 10px;
     background: rgba(255,255,255,.12);
@@ -310,6 +311,82 @@
     outline: none;
   }
   .fps-setting input:focus { border-color: var(--accent); }
+
+  /* ====== 转码面板 ====== */
+  #transcode-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(10, 10, 24, 0.94);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(6px);
+  }
+  .transcode-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 36px;
+    text-align: center;
+    max-width: 460px;
+    width: 92%;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+  }
+  .transcode-box h3 {
+    font-size: 18px;
+    margin-bottom: 12px;
+    color: var(--text);
+  }
+  .transcode-box .codec-tag {
+    display: inline-block;
+    background: var(--accent);
+    color: #fff;
+    padding: 3px 10px;
+    border-radius: 5px;
+    font-size: 12px;
+    font-family: monospace;
+    margin-bottom: 10px;
+  }
+  .transcode-box p {
+    color: var(--text-dim);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .transcode-progress-wrap {
+    width: 100%;
+    height: 8px;
+    background: var(--border);
+    border-radius: 4px;
+    margin: 20px 0 10px;
+    overflow: hidden;
+  }
+  .transcode-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+    width: 0;
+    border-radius: 4px;
+    transition: width 0.4s ease;
+  }
+  #transcode-detail {
+    font-size: 13px;
+    color: var(--accent);
+    margin-bottom: 20px;
+    min-height: 20px;
+    font-family: 'SF Mono', monospace;
+  }
+  .transcode-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .transcode-hint {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 14px;
+    opacity: 0.7;
+  }
 </style>
 </head>
 <body>
@@ -326,7 +403,7 @@
 <div id="drop-zone">
   <div class="icon">📁</div>
   <p>拖拽视频文件到这里，或点击选择文件</p>
-  <p style="margin-top:6px;font-size:12px;color:var(--text-dim)">支持 mp4 / webm / ogg / mov</p>
+  <p style="margin-top:6px;font-size:12px;color:var(--text-dim)">支持 mp4 / webm / ogg / mov / H.266(自动转码)</p>
   <input type="file" id="file-input" accept="video/*">
 </div>
 
@@ -420,9 +497,33 @@
   <span>✅ 已截取当前帧</span>
 </div>
 
+<!-- 转码面板 -->
+<div id="transcode-overlay">
+  <div class="transcode-box">
+    <h3>🔧 格式兼容处理</h3>
+    <div class="codec-tag" id="transcode-codec">未知编码</div>
+    <p id="transcode-msg">浏览器不支持直接播放此编码格式</p>
+    <div class="transcode-progress-wrap">
+      <div class="transcode-progress-fill" id="transcode-progress-fill"></div>
+    </div>
+    <p id="transcode-detail"></p>
+    <div class="transcode-actions">
+      <button class="btn primary" id="btn-transcode">开始转码 (→ H.264)</button>
+      <button class="btn" id="btn-transcode-cancel">换其他视频</button>
+    </div>
+    <p class="transcode-hint">首次转码需下载约 30MB 转码引擎，请耐心等待</p>
+  </div>
+</div>
+
 <script>
 (function() {
   'use strict';
+
+  // ========== CDN 配置 ==========
+  const FFMPEG_CDN = {
+    ffmpeg: 'https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/esm/index.js',
+    util: 'https://unpkg.com/@ffmpeg/util@0.12.1/dist/esm/index.js'
+  };
 
   // ========== DOM ==========
   const dropZone = document.getElementById('drop-zone');
@@ -467,6 +568,15 @@
   const screenshotToast = document.getElementById('screenshot-toast');
   const screenshotImg = document.getElementById('screenshot-img');
 
+  // 转码面板 DOM
+  const transcodeOverlay = document.getElementById('transcode-overlay');
+  const transcodeCodec = document.getElementById('transcode-codec');
+  const transcodeMsg = document.getElementById('transcode-msg');
+  const transcodeProgressFill = document.getElementById('transcode-progress-fill');
+  const transcodeDetail = document.getElementById('transcode-detail');
+  const btnTranscode = document.getElementById('btn-transcode');
+  const btnTranscodeCancel = document.getElementById('btn-transcode-cancel');
+
   // ========== State ==========
   let fps = 30;
   let frameDuration = 1 / fps;
@@ -477,19 +587,204 @@
   let timelineThumbs = [];
   let objectUrl = null;
 
-  // ========== 帧率 ==========
-  fpsInput.addEventListener('change', function() {
-    const v = parseInt(this.value, 10);
-    if (v > 0 && v <= 120) {
-      fps = v;
-      frameDuration = 1 / fps;
-      totalFrames = Math.ceil(video.duration * fps);
-      infoFps.textContent = fps + ' fps';
-      updateInfo();
-    }
-  });
+  // 转码相关状态
+  let ffmpegInstance = null;
+  let currentFile = null;
+  let isTranscoding = false;
+  let currentCodecInfo = null;
+  let supportCheckTimer = null;
 
-  // ========== 文件加载 ==========
+  // ========== 编码检测 ==========
+  async function detectVideoCodec(file) {
+    try {
+      const sliceSize = Math.min(file.size, 2 * 1024 * 1024);
+      const slice = file.slice(0, sliceSize);
+      const buf = await slice.arrayBuffer();
+      const bytes = new Uint8Array(buf);
+
+      // 将字节转为可搜索的字符串（ASCII 范围）
+      let text = '';
+      for (let i = 0; i < bytes.length; i++) {
+        const c = bytes[i];
+        if (c >= 32 && c < 127) {
+          text += String.fromCharCode(c);
+        } else {
+          text += ' ';
+        }
+      }
+
+      // VVC / H.266
+      if (text.includes('vvc1') || text.includes('vvcC') || text.includes('vvi1') ||
+          text.includes('vvc ') || text.includes('vvcc')) {
+        return { codec: 'vvc', name: 'H.266 / VVC', supported: false };
+      }
+
+      // HEVC / H.265
+      if (text.includes('hev1') || text.includes('hvc1') || text.includes('hvcC') ||
+          text.includes('hevc') || text.includes('HEVC')) {
+        return { codec: 'hevc', name: 'H.265 / HEVC', supported: false };
+      }
+
+      // AV1
+      if (text.includes('av01') || text.includes('av1C') || text.includes('AV01')) {
+        // AV1 在较新浏览器中支持
+        const av1Supported = video.canPlayType('video/mp4; codecs="av01.0.00M.08"') !== '';
+        return { codec: 'av1', name: 'AV1', supported: av1Supported };
+      }
+
+      // H.264 / AVC
+      if (text.includes('avc1') || text.includes('avcC') || text.includes('AVC ')) {
+        return { codec: 'avc', name: 'H.264 / AVC', supported: true };
+      }
+
+      // VP9
+      if (text.includes('vp09') || text.includes('vp08') || text.includes('VP90')) {
+        return { codec: 'vp9', name: 'VP9', supported: true };
+      }
+
+      // VP8
+      if (text.includes('vp80')) {
+        return { codec: 'vp8', name: 'VP8', supported: true };
+      }
+
+      // 检查 MP4 容器特征
+      const ftypIdx = text.indexOf('ftyp');
+      if (ftypIdx >= 0) {
+        return { codec: 'unknown-mp4', name: '未知编码 (MP4)', supported: false };
+      }
+
+      // WebM
+      if (text.includes('webm') || text.includes('WEBM')) {
+        return { codec: 'webm', name: 'WebM', supported: true };
+      }
+
+      return { codec: 'unknown', name: '未知格式', supported: false };
+    } catch (e) {
+      return { codec: 'unknown', name: '检测失败', supported: false };
+    }
+  }
+
+  // ========== 转码面板 ==========
+  function showTranscodePanel(codecInfo, isFallback) {
+    currentCodecInfo = codecInfo;
+    transcodeOverlay.style.display = 'flex';
+    transcodeCodec.textContent = codecInfo.name;
+    if (isFallback) {
+      transcodeMsg.textContent = '该视频无法正常解码，尝试转码后播放';
+    } else {
+      transcodeMsg.textContent = '浏览器不支持直接播放此编码格式';
+    }
+    transcodeProgressFill.style.width = '0%';
+    transcodeDetail.textContent = '';
+    btnTranscode.style.display = 'inline-flex';
+    btnTranscode.disabled = false;
+    btnTranscode.textContent = '开始转码 (→ H.264)';
+  }
+
+  function hideTranscodePanel() {
+    transcodeOverlay.style.display = 'none';
+  }
+
+  function updateTranscodeProgress(percent, detail) {
+    transcodeProgressFill.style.width = Math.min(100, Math.max(0, percent)) + '%';
+    if (detail) transcodeDetail.textContent = detail;
+  }
+
+  // ========== ffmpeg.wasm 转码 ==========
+  async function startTranscode() {
+    if (!currentFile || isTranscoding) return;
+    isTranscoding = true;
+    btnTranscode.disabled = true;
+
+    try {
+      updateTranscodeProgress(2, '正在加载转码引擎...');
+
+      // 动态加载 ffmpeg.wasm ESM 模块
+      let FFmpeg, fetchFile;
+      if (!ffmpegInstance) {
+        const [{ FFmpeg: FF }, { fetchFile: FFfetch }] = await Promise.all([
+          import(FFMPEG_CDN.ffmpeg),
+          import(FFMPEG_CDN.util)
+        ]);
+        FFmpeg = FF;
+        fetchFile = FFfetch;
+
+        ffmpegInstance = new FFmpeg();
+        ffmpegInstance.on('log', ({ message }) => {
+          // 过滤掉大量进度日志
+          if (!message.includes('frame=') && !message.includes('size=')) {
+            console.log('[ffmpeg]', message);
+          }
+        });
+        ffmpegInstance.on('progress', ({ progress }) => {
+          const pct = Math.min(92, 8 + Math.round(progress * 92));
+          updateTranscodeProgress(pct, '转码中... ' + pct + '%');
+        });
+
+        await ffmpegInstance.load();
+      } else {
+        // 复用已有实例，只需获取 fetchFile
+        const { fetchFile: FFfetch } = await import(FFMPEG_CDN.util);
+        fetchFile = FFfetch;
+      }
+
+      updateTranscodeProgress(5, '读取视频文件...');
+      await ffmpegInstance.writeFile('input.mp4', await fetchFile(currentFile));
+
+      updateTranscodeProgress(8, '开始转码 H.266 → H.264（预计需要几分钟）...');
+
+      // 转码参数：ultrafast 速度最快，crf 28 质量可接受
+      await ffmpegInstance.exec([
+        '-i', 'input.mp4',
+        '-c:v', 'libx264',
+        '-preset', 'ultrafast',
+        '-crf', '28',
+        '-pix_fmt', 'yuv420p',
+        '-c:a', 'aac',
+        '-b:a', '128k',
+        '-movflags', '+faststart',
+        '-y',
+        'output.mp4'
+      ]);
+
+      updateTranscodeProgress(95, '读取转码结果...');
+      const data = await ffmpegInstance.readFile('output.mp4');
+
+      // 清理临时文件
+      try {
+        await ffmpegInstance.deleteFile('input.mp4');
+        await ffmpegInstance.deleteFile('output.mp4');
+      } catch (e) { /* ignore */ }
+
+      // 创建 Blob URL
+      const blob = new Blob([data.buffer], { type: 'video/mp4' });
+      const transcodeUrl = URL.createObjectURL(blob);
+
+      // 加载转码后的视频
+      cleanupObjectUrl();
+      objectUrl = transcodeUrl;
+      video.src = transcodeUrl;
+      video.load();
+      showPlayer();
+      hideTranscodePanel();
+
+      updateTranscodeProgress(100, '转码完成！');
+
+    } catch (err) {
+      console.error('Transcode error:', err);
+      updateTranscodeProgress(0, '❌ 转码失败: ' + (err.message || '未知错误'));
+      btnTranscode.disabled = false;
+      btnTranscode.textContent = '重试转码';
+      // 如果是因为 VVC 解码器不支持，给出更明确的提示
+      if (err.message && err.message.includes('codec')) {
+        transcodeDetail.textContent = '当前转码引擎暂不支持 H.266 解码，建议先用本地 ffmpeg 转码';
+      }
+    } finally {
+      isTranscoding = false;
+    }
+  }
+
+  // ========== 文件加载（增强版）==========
   dropZone.addEventListener('click', function() { fileInput.click(); });
   dropZone.addEventListener('dragover', function(e) {
     e.preventDefault();
@@ -502,32 +797,97 @@
     e.preventDefault();
     dropZone.classList.remove('dragover');
     if (e.dataTransfer.files.length > 0) {
-      loadFile(e.dataTransfer.files[0]);
+      handleFileLoad(e.dataTransfer.files[0]);
     }
   });
   fileInput.addEventListener('change', function() {
-    if (this.files.length > 0) loadFile(this.files[0]);
+    if (this.files.length > 0) handleFileLoad(this.files[0]);
   });
-  urlLoadBtn.addEventListener('click', loadFromUrl);
+  urlLoadBtn.addEventListener('click', handleUrlLoad);
   urlInput.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') loadFromUrl();
+    if (e.key === 'Enter') handleUrlLoad();
   });
 
-  function loadFromUrl() {
-    const url = urlInput.value.trim();
-    if (!url) return;
+  async function handleFileLoad(file) {
+    // 清理之前的状态
+    clearSupportCheck();
     cleanupObjectUrl();
-    video.src = url;
-    video.load();
-    showPlayer();
-  }
+    resetPlayer();
 
-  function loadFile(file) {
-    cleanupObjectUrl();
+    currentFile = file;
+
+    // 检测编码
+    const codecInfo = await detectVideoCodec(file);
+
+    if (!codecInfo.supported && codecInfo.codec !== 'av1') {
+      // 明确不支持的编码，直接提示转码
+      showTranscodePanel(codecInfo, false);
+      return;
+    }
+
+    // 尝试原生播放
     objectUrl = URL.createObjectURL(file);
     video.src = objectUrl;
     video.load();
     showPlayer();
+
+    // 兜底检测：3秒后如果视频还没准备好，可能是编码不支持
+    if (codecInfo.codec === 'av1' || codecInfo.codec === 'unknown-mp4' || codecInfo.codec === 'unknown') {
+      supportCheckTimer = setTimeout(function() {
+        if (!videoReady && video.videoWidth === 0) {
+          video.pause();
+          video.removeAttribute('src');
+          showTranscodePanel(codecInfo, true);
+        }
+      }, 4000);
+    }
+  }
+
+  async function handleUrlLoad() {
+    const url = urlInput.value.trim();
+    if (!url) return;
+
+    clearSupportCheck();
+    cleanupObjectUrl();
+    resetPlayer();
+    currentFile = null;
+
+    video.src = url;
+    video.load();
+    showPlayer();
+
+    // URL 加载无法预检编码，兜底检测
+    supportCheckTimer = setTimeout(function() {
+      if (!videoReady && video.videoWidth === 0) {
+        video.pause();
+        video.removeAttribute('src');
+        showTranscodePanel({ codec: 'unknown', name: '未知编码 (URL)', supported: false }, true);
+      }
+    }, 5000);
+  }
+
+  function clearSupportCheck() {
+    if (supportCheckTimer) {
+      clearTimeout(supportCheckTimer);
+      supportCheckTimer = null;
+    }
+  }
+
+  function resetPlayer() {
+    video.pause();
+    video.removeAttribute('src');
+    video.load();
+    isPlaying = false;
+    videoReady = false;
+    btnPlay.innerHTML = '▶ 播放 <span class="key">Space</span>';
+    videoBox.classList.remove('canvas-mode');
+    timelineThumbs = [];
+    infoFrame.textContent = '0 / 0';
+    infoTime.textContent = '00:00.000 / 00:00.000';
+    infoRes.textContent = '-';
+    infoFps.textContent = '-';
+    progressFill.style.width = '0%';
+    timelineCursor.style.left = '0%';
   }
 
   function cleanupObjectUrl() {
@@ -545,22 +905,31 @@
 
   // 换视频
   btnNew.addEventListener('click', function() {
-    video.pause();
-    video.removeAttribute('src');
-    video.load();
-    isPlaying = false;
-    videoReady = false;
-    btnPlay.innerHTML = '▶ 播放 <span class="key">Space</span>';
+    clearSupportCheck();
+    resetPlayer();
     playerWrap.classList.remove('active');
-    videoBox.classList.remove('canvas-mode');
     dropZone.style.display = '';
     cleanupObjectUrl();
     urlInput.value = '';
-    timelineThumbs = [];
+    currentFile = null;
+    currentCodecInfo = null;
+    hideTranscodePanel();
+  });
+
+  // 转码按钮
+  btnTranscode.addEventListener('click', startTranscode);
+  btnTranscodeCancel.addEventListener('click', function() {
+    hideTranscodePanel();
+    resetPlayer();
+    playerWrap.classList.remove('active');
+    dropZone.style.display = '';
+    cleanupObjectUrl();
+    currentFile = null;
   });
 
   // ========== 视频就绪 ==========
   video.addEventListener('loadedmetadata', function() {
+    clearSupportCheck();
     fps = parseInt(fpsInput.value, 10) || 30;
     frameDuration = 1 / fps;
     totalFrames = Math.ceil(video.duration * fps);
@@ -579,7 +948,6 @@
   });
 
   video.addEventListener('loadeddata', function() {
-    // 确保第一帧绘制出来
     if (videoReady) {
       drawFrame();
       videoBox.classList.add('canvas-mode');
@@ -603,6 +971,14 @@
   video.addEventListener('ended', function() {
     isPlaying = false;
     btnPlay.innerHTML = '▶ 播放 <span class="key">Space</span>';
+  });
+
+  video.addEventListener('error', function(e) {
+    console.error('Video error:', video.error);
+    clearSupportCheck();
+    if (currentFile && !videoReady) {
+      showTranscodePanel(currentCodecInfo || { codec: 'unknown', name: '未知编码', supported: false }, true);
+    }
   });
 
   // ========== 信息更新 ==========
@@ -691,9 +1067,7 @@
     video.pause();
     isPlaying = false;
     btnPlay.innerHTML = '▶ 播放 <span class="key">Space</span>';
-    // 切到 canvas 模式显示当前帧
     videoBox.classList.add('canvas-mode');
-    // 延迟绘制确保 video 已暂停
     requestAnimationFrame(function() { drawFrame(); });
   }
 
@@ -704,6 +1078,20 @@
       btn.classList.add('active');
       video.playbackRate = parseFloat(btn.dataset.speed);
     });
+  });
+
+  // ========== 帧率 ==========
+  fpsInput.addEventListener('change', function() {
+    const v = parseInt(this.value, 10);
+    if (v > 0 && v <= 120) {
+      fps = v;
+      frameDuration = 1 / fps;
+      if (video.duration) {
+        totalFrames = Math.ceil(video.duration * fps);
+      }
+      infoFps.textContent = fps + ' fps';
+      updateInfo();
+    }
   });
 
   // ========== 缩放 ==========
@@ -775,18 +1163,15 @@
   // ========== 截帧 ==========
   function screenshotFrame() {
     if (!videoReady) return;
-    // 确保 canvas 有当前帧
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     const dataUrl = canvas.toDataURL('image/png');
-    // 弹出预览
     screenshotImg.src = dataUrl;
     screenshotToast.style.display = 'flex';
     setTimeout(function() { screenshotToast.style.display = 'none'; }, 3000);
-    // 下载
     const a = document.createElement('a');
     a.href = dataUrl;
     const frame = getCurrentFrame();
-    a.download = 'frame_' + frame + '_' + formatTime(video.currentTime).replace(':', '-') + '.png';
+    a.download = 'frame_' + frame + '_' + formatTime(video.currentTime).replace(/:/g, '-') + '.png';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -804,8 +1189,8 @@
 
   // ========== 键盘快捷键 ==========
   document.addEventListener('keydown', function(e) {
-    // 跳过输入框
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (isTranscoding) return; // 转码时禁用快捷键
     if (!videoReady) return;
 
     switch (e.key) {
