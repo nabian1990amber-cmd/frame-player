@@ -5,7 +5,7 @@
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="googlebot" content="noindex, nofollow">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>视频播放器 · 点播 / 直播</title>
+<title>视频播放器 · 双画面对比</title>
 <style>
   :root {
     --bg: #1a1a2e;
@@ -38,38 +38,126 @@
   }
   h1 span { color: var(--accent); }
 
-  /* 上传区 */
-  #drop-zone {
+  /* ===== 加载区（A/B 两个卡片并排） ===== */
+  .load-row {
     width: 100%;
-    max-width: 960px;
-    border: 2px dashed var(--border);
-    border-radius: 12px;
-    padding: 60px 20px;
-    text-align: center;
-    cursor: pointer;
-    transition: border-color .2s, background .2s;
+    max-width: 1100px;
+    display: flex;
+    gap: 12px;
     margin-bottom: 16px;
   }
-  #drop-zone:hover, #drop-zone.dragover {
+  .load-card {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .load-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .load-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px; height: 22px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .load-badge.a { background: var(--accent); color: #fff; }
+  .load-badge.b { background: var(--blue); color: #fff; }
+  .load-head .hint { font-weight: 400; font-size: 12px; color: var(--text-dim); margin-left: auto; }
+
+  .load-drop {
+    border: 2px dashed var(--border);
+    border-radius: 8px;
+    padding: 18px 10px;
+    text-align: center;
+    cursor: pointer;
+    color: var(--text-dim);
+    font-size: 13px;
+    transition: all .2s;
+  }
+  .load-drop:hover, .load-drop.dragover {
     border-color: var(--accent);
+    color: var(--text);
     background: rgba(233,69,96,.06);
   }
-  #drop-zone p { color: var(--text-dim); font-size: 15px; }
-  #drop-zone .icon { font-size: 48px; margin-bottom: 12px; }
-  #drop-zone input { display: none; }
+  .load-url { display: flex; gap: 6px; }
+  .load-url input {
+    flex: 1;
+    padding: 8px 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 13px;
+    outline: none;
+    min-width: 0;
+  }
+  .load-url input:focus { border-color: var(--accent); }
+  .load-url input::placeholder { color: var(--text-dim); }
+  .load-url button {
+    padding: 8px 12px;
+    background: var(--accent);
+    border: none;
+    border-radius: 6px;
+    color: #fff;
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .load-url button:hover { background: var(--accent-hover); }
+  .load-url button.blue { background: var(--blue); }
 
-  /* 播放器容器 */
+  /* ===== 播放区 ===== */
   #player-wrap {
     display: none;
     width: 100%;
-    max-width: 960px;
+    max-width: 1100px;
     flex-direction: column;
     align-items: center;
     gap: 12px;
   }
   #player-wrap.active { display: flex; }
 
-  /* 视频 / Canvas */
+  .stages {
+    width: 100%;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .stage {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .stage.hidden { display: none; }
+  .stage.single { flex: 1; max-width: 100%; }
+
+  .stage-tag {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .stage-tag .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .stage-tag .dot.a { background: var(--accent); }
+  .stage-tag .dot.b { background: var(--blue); }
+
   .video-box {
     position: relative;
     width: 100%;
@@ -78,38 +166,34 @@
     overflow: hidden;
     line-height: 0;
   }
-  #video-el {
-    width: 100%;
-    display: block;
-  }
-  canvas#frame-canvas {
+  .video-box video { width: 100%; display: block; }
+  .video-box canvas {
     width: 100%;
     display: none;
     cursor: crosshair;
   }
-  .video-box.canvas-mode #video-el { display: none; }
-  .video-box.canvas-mode #frame-canvas { display: block; }
+  .video-box.canvas-mode video { display: none; }
+  .video-box.canvas-mode canvas { display: block; }
 
-  /* 帧信息条 */
-  .info-bar {
-    width: 100%;
+  /* stage 信息条 */
+  .stage-info {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 6px 12px;
+    padding: 6px 10px;
     background: var(--surface);
     border-radius: 8px;
-    font-size: 13px;
+    font-size: 12px;
     color: var(--text-dim);
-    flex-wrap: wrap;
     gap: 6px;
+    flex-wrap: wrap;
   }
-  .info-bar .tag {
+  .stage-info .tag {
     background: var(--border);
     padding: 2px 8px;
     border-radius: 4px;
     font-family: 'SF Mono', 'Fira Code', monospace;
-    font-size: 12px;
+    font-size: 11px;
     color: var(--text);
   }
 
@@ -137,7 +221,7 @@
     50% { opacity: .4; box-shadow: 0 0 0 4px rgba(255,77,90,0); }
   }
 
-  /* 模式显隐：live-only 默认隐藏；直播时隐藏 vod-only、显示 live-only */
+  /* 模式显隐 */
   .live-only { display: none !important; }
   #player-wrap.mode-live .vod-only { display: none !important; }
   #player-wrap.mode-live .live-only { display: inline-flex !important; align-items: center; gap: 8px; }
@@ -170,10 +254,7 @@
     position: relative;
     cursor: pointer;
   }
-  .timeline-strip canvas {
-    width: 100%;
-    height: 100%;
-  }
+  .timeline-strip canvas { width: 100%; height: 100%; }
   .timeline-cursor {
     position: absolute;
     top: 0;
@@ -220,17 +301,8 @@
     font-family: monospace;
   }
 
-  /* 速度选择 */
-  .speed-group {
-    display: flex;
-    gap: 4px;
-    align-items: center;
-  }
-  .speed-group label {
-    font-size: 12px;
-    color: var(--text-dim);
-    margin-right: 4px;
-  }
+  .speed-group { display: flex; gap: 4px; align-items: center; }
+  .speed-group label { font-size: 12px; color: var(--text-dim); margin-right: 4px; }
   .speed-btn {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -244,7 +316,21 @@
   .speed-btn:hover { border-color: var(--accent); color: var(--text); }
   .speed-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 
-  /* 缩放信息 */
+  .fps-setting { display: flex; align-items: center; gap: 6px; }
+  .fps-setting label { font-size: 12px; color: var(--text-dim); }
+  .fps-setting input {
+    width: 60px;
+    padding: 4px 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--text);
+    font-size: 12px;
+    text-align: center;
+    outline: none;
+  }
+  .fps-setting input:focus { border-color: var(--accent); }
+
   .zoom-info {
     font-size: 12px;
     color: var(--text-dim);
@@ -253,7 +339,7 @@
     gap: 6px;
   }
 
-  /* 帧截图预览 */
+  /* 截图 toast */
   #screenshot-toast {
     position: fixed;
     bottom: 30px;
@@ -268,17 +354,9 @@
     z-index: 999;
     box-shadow: 0 8px 30px rgba(0,0,0,.5);
   }
-  #screenshot-toast img {
-    max-width: 200px;
-    border-radius: 6px;
-  }
-  #screenshot-toast span {
-    font-size: 12px;
-    color: var(--green);
-    text-align: center;
-  }
+  #screenshot-toast img { max-width: 260px; border-radius: 6px; }
+  #screenshot-toast span { font-size: 12px; color: var(--green); text-align: center; }
 
-  /* 消息 toast */
   #msg-toast {
     position: fixed;
     top: 20px;
@@ -297,33 +375,8 @@
     text-align: center;
   }
 
-  /* URL 输入 */
-  .url-bar {
-    width: 100%;
-    max-width: 960px;
-    display: flex;
-    gap: 8px;
-    margin-bottom: 12px;
-  }
-  .url-bar input {
-    flex: 1;
-    padding: 10px 14px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--text);
-    font-size: 14px;
-    outline: none;
-    transition: border-color .2s;
-  }
-  .url-bar input:focus { border-color: var(--accent); }
-  .url-bar input::placeholder { color: var(--text-dim); }
-
-  /* 快捷键提示 */
   .shortcuts-hint {
     width: 100%;
-    max-width: 960px;
-    margin-top: 8px;
     padding: 10px 14px;
     background: var(--surface);
     border-radius: 8px;
@@ -340,27 +393,7 @@
     font-size: 11px;
   }
 
-  /* 帧率设置 */
-  .fps-setting {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .fps-setting label { font-size: 12px; color: var(--text-dim); }
-  .fps-setting input {
-    width: 60px;
-    padding: 4px 8px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    color: var(--text);
-    font-size: 12px;
-    text-align: center;
-    outline: none;
-  }
-  .fps-setting input:focus { border-color: var(--accent); }
-
-  /* ====== 转码面板 ====== */
+  /* 转码面板 */
   #transcode-overlay {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
@@ -381,11 +414,7 @@
     width: 92%;
     box-shadow: 0 24px 80px rgba(0,0,0,0.6);
   }
-  .transcode-box h3 {
-    font-size: 18px;
-    margin-bottom: 12px;
-    color: var(--text);
-  }
+  .transcode-box h3 { font-size: 18px; margin-bottom: 12px; color: var(--text); }
   .transcode-box .codec-tag {
     display: inline-block;
     background: var(--accent);
@@ -396,11 +425,7 @@
     font-family: monospace;
     margin-bottom: 10px;
   }
-  .transcode-box p {
-    color: var(--text-dim);
-    font-size: 14px;
-    line-height: 1.6;
-  }
+  .transcode-box p { color: var(--text-dim); font-size: 14px; line-height: 1.6; }
   .transcode-progress-wrap {
     width: 100%;
     height: 8px;
@@ -416,67 +441,62 @@
     border-radius: 4px;
     transition: width 0.4s ease;
   }
-  #transcode-detail {
-    font-size: 13px;
-    color: var(--accent);
-    margin-bottom: 20px;
-    min-height: 20px;
-    font-family: 'SF Mono', monospace;
-  }
-  .transcode-actions {
-    display: flex;
-    gap: 10px;
-    justify-content: center;
-    flex-wrap: wrap;
-  }
-  .transcode-hint {
-    font-size: 11px;
-    color: var(--text-dim);
-    margin-top: 14px;
-    opacity: 0.7;
-  }
+  #transcode-detail { font-size: 13px; color: var(--accent); margin-bottom: 20px; min-height: 20px; font-family: 'SF Mono', monospace; }
+  .transcode-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .transcode-hint { font-size: 11px; color: var(--text-dim); margin-top: 14px; opacity: 0.7; }
 </style>
 </head>
 <body>
 
-<h1>🎞️ 视频<span>播放器</span><span style="font-size:13px;color:var(--text-dim);margin-left:8px;letter-spacing:0">点播 · 直播</span></h1>
+<h1>🎞️ 视频<span>播放器</span><span style="font-size:13px;color:var(--text-dim);margin-left:8px;letter-spacing:0">双画面对比 · 点播 / 直播</span></h1>
 
-<!-- URL 输入 -->
-<div class="url-bar">
-  <input type="text" id="url-input" placeholder="粘贴视频 URL 或直播流地址（mp4 / webm / m3u8 / flv）...">
-  <button class="btn primary" id="url-load-btn">加载</button>
-</div>
-
-<!-- 拖拽上传区 -->
-<div id="drop-zone">
-  <div class="icon">📁</div>
-  <p>拖拽视频文件到这里，或点击选择文件</p>
-  <p style="margin-top:6px;font-size:12px;color:var(--text-dim)">支持 mp4 / webm / ogg / mov / H.266(自动转码)；直播流请用上方 URL 输入</p>
-  <input type="file" id="file-input" accept="video/*">
-</div>
-
-<!-- 播放器 -->
-<div id="player-wrap">
-  <div class="video-box" id="video-box">
-    <video id="video-el" preload="auto"></video>
-    <canvas id="frame-canvas"></canvas>
+<!-- 加载区 A/B -->
+<div class="load-row">
+  <div class="load-card" id="load-card-A">
+    <div class="load-head"><span class="load-badge a">A</span> 视频 A（主）<span class="hint">拖文件或贴 URL</span></div>
+    <div class="load-drop" id="drop-A">拖拽文件到这里，或点击选择文件</div>
+    <div class="load-url">
+      <input type="text" id="url-A" placeholder="视频 URL / 直播流地址（mp4 · m3u8 · flv）...">
+      <button id="load-btn-A">加载</button>
+    </div>
+    <input type="file" id="file-A" accept="video/*" style="display:none">
   </div>
+  <div class="load-card" id="load-card-B">
+    <div class="load-head"><span class="load-badge b">B</span> 视频 B（对比）<span class="hint">拖文件或贴 URL</span></div>
+    <div class="load-drop" id="drop-B">拖拽文件到这里，或点击选择文件</div>
+    <div class="load-url">
+      <input type="text" id="url-B" placeholder="视频 URL（mp4 / webm ...）对比用">
+      <button id="load-btn-B" class="blue">加载</button>
+    </div>
+    <input type="file" id="file-B" accept="video/*" style="display:none">
+  </div>
+</div>
 
-  <!-- 信息栏 -->
-  <div class="info-bar">
-    <div class="vod-only">
-      帧: <span class="tag" id="info-frame">0 / 0</span>
-      时间: <span class="tag" id="info-time">00:00.000 / 00:00.000</span>
+<!-- 播放区 -->
+<div id="player-wrap">
+  <div class="stages" id="stages">
+    <div class="stage" id="stage-A">
+      <div class="stage-tag"><span class="dot a"></span>视频 A <span class="live-badge live-only" style="margin-left:6px"><span class="live-dot"></span>LIVE</span></div>
+      <div class="video-box" id="video-box-A">
+        <video id="video-A" preload="auto"></video>
+        <canvas id="canvas-A"></canvas>
+      </div>
+      <div class="stage-info">
+        <span class="vod-only">帧 <span class="tag" id="frame-A">0 / 0</span> · 时间 <span class="tag" id="time-A">00:00.000 / 00:00.000</span></span>
+        <span class="live-only">已播 <span class="tag" id="live-elapsed-A">00:00:00</span> · 缓冲 <span class="tag" id="live-buffer-A">-</span></span>
+        <span>分辨率 <span class="tag" id="res-A">-</span><span class="live-only"> · 协议 <span class="tag" id="live-proto-A">-</span></span></span>
+      </div>
     </div>
-    <div class="live-only">
-      <span class="live-badge"><span class="live-dot"></span>LIVE</span>
-      已播 <span class="tag" id="info-live-elapsed">00:00:00</span>
-      缓冲 <span class="tag" id="info-live-buffer">-</span>
-    </div>
-    <div>
-      分辨率: <span class="tag" id="info-res">-</span>
-      <span class="vod-only">帧率: <span class="tag" id="info-fps">-</span></span>
-      <span class="live-only">协议: <span class="tag" id="info-live-proto">-</span></span>
+    <div class="stage" id="stage-B">
+      <div class="stage-tag"><span class="dot b"></span>视频 B</div>
+      <div class="video-box" id="video-box-B">
+        <video id="video-B" preload="auto"></video>
+        <canvas id="canvas-B"></canvas>
+      </div>
+      <div class="stage-info">
+        <span class="vod-only">帧 <span class="tag" id="frame-B">0 / 0</span> · 时间 <span class="tag" id="time-B">00:00.000 / 00:00.000</span></span>
+        <span>分辨率 <span class="tag" id="res-B">-</span></span>
+      </div>
     </div>
   </div>
 
@@ -485,13 +505,13 @@
     <div class="progress-fill" id="progress-fill"></div>
   </div>
 
-  <!-- 时间轴缩略图 -->
+  <!-- 时间轴缩略（仅单视频） -->
   <div class="timeline-strip vod-only" id="timeline-strip">
     <canvas id="timeline-canvas"></canvas>
     <div class="timeline-cursor" id="timeline-cursor"></div>
   </div>
 
-  <!-- 控制按钮 -->
+  <!-- 控制栏 -->
   <div class="controls">
     <button class="btn vod-only" id="btn-prev-10" title="后退10帧">⏪ -10 <span class="key">⇧←</span></button>
     <button class="btn vod-only" id="btn-prev" title="上一帧">◀ 上一帧 <span class="key">←</span></button>
@@ -500,7 +520,7 @@
     <button class="btn vod-only" id="btn-next-10" title="前进10帧">+10 ⏩ <span class="key">⇧→</span></button>
     <button class="btn vod-only" id="btn-start" title="跳到开头">⏮ <span class="key">Home</span></button>
     <button class="btn vod-only" id="btn-end" title="跳到末尾">⏭ <span class="key">End</span></button>
-    <button class="btn" id="btn-screenshot" title="截图当前帧">📷 截帧 <span class="key">S</span></button>
+    <button class="btn" id="btn-screenshot" title="截图（双画面时生成对比图）">📷 截帧 <span class="key">S</span></button>
   </div>
 
   <div class="controls" style="margin-top:4px;">
@@ -508,7 +528,6 @@
       <label>帧率(FPS):</label>
       <input type="number" id="fps-input" value="30" min="1" max="120" step="1">
     </div>
-
     <div class="speed-group vod-only">
       <label>播放速度:</label>
       <button class="speed-btn" data-speed="0.1">0.1x</button>
@@ -517,21 +536,18 @@
       <button class="speed-btn active" data-speed="1">1x</button>
       <button class="speed-btn" data-speed="2">2x</button>
     </div>
-
     <div class="zoom-info">
       <button class="btn" id="btn-zoom-in" title="放大">🔍+</button>
       <span id="zoom-level">100%</span>
       <button class="btn" id="btn-zoom-out" title="缩小">🔍-</button>
       <button class="btn" id="btn-zoom-reset" title="重置">1:1</button>
     </div>
-
-    <button class="btn" id="btn-new" title="换一个视频">📂 换视频</button>
+    <button class="btn" id="btn-new" title="清空重新加载">📂 换视频</button>
   </div>
 
-  <!-- 快捷键提示 -->
   <div class="shortcuts-hint">
     <span class="vod-only">
-      点播：<kbd>Space</kbd> 播放/暂停 &nbsp;<kbd>←</kbd> 上一帧 &nbsp;<kbd>→</kbd> 下一帧 &nbsp;<kbd>Shift+←→</kbd> ±10帧 &nbsp;<kbd>Home</kbd>/<kbd>End</kbd> 首末帧 &nbsp;<kbd>S</kbd> 截帧 &nbsp;<kbd>+/-</kbd> 缩放
+      点播：<kbd>Space</kbd> 播放/暂停 &nbsp;<kbd>←</kbd>/<kbd>→</kbd> 上一帧/下一帧 &nbsp;<kbd>Shift+←→</kbd> ±10帧 &nbsp;<kbd>Home</kbd>/<kbd>End</kbd> 首末帧 &nbsp;<kbd>S</kbd> 截帧（双画面生成左右对比图） &nbsp;<kbd>+/-</kbd> 缩放
     </span>
     <span class="live-only">
       直播：<kbd>Space</kbd> 播放/暂停 &nbsp;<kbd>S</kbd> 实时截图 &nbsp;<kbd>+/-</kbd> 缩放（纯实时，不支持回看）
@@ -539,16 +555,13 @@
   </div>
 </div>
 
-<!-- 截图 toast -->
 <div id="screenshot-toast">
   <img id="screenshot-img" src="">
-  <span>✅ 已截取当前帧</span>
+  <span>✅ 已截取</span>
 </div>
 
-<!-- 消息 toast -->
 <div id="msg-toast"></div>
 
-<!-- 转码面板 -->
 <div id="transcode-overlay">
   <div class="transcode-box">
     <h3>🔧 格式兼容处理</h3>
@@ -570,7 +583,7 @@
 (function() {
   'use strict';
 
-  // ========== CDN 配置 ==========
+  // ========== CDN ==========
   const FFMPEG_CDN = {
     ffmpeg: 'https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/esm/index.js',
     util: 'https://unpkg.com/@ffmpeg/util@0.12.1/dist/esm/index.js'
@@ -578,86 +591,51 @@
   const HLS_CDN = 'https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js';
   const FLV_CDN = 'https://cdn.jsdelivr.net/npm/flv.js@1/dist/flv.min.js';
 
-  // ========== DOM ==========
-  const dropZone = document.getElementById('drop-zone');
-  const fileInput = document.getElementById('file-input');
-  const urlInput = document.getElementById('url-input');
-  const urlLoadBtn = document.getElementById('url-load-btn');
-  const playerWrap = document.getElementById('player-wrap');
-  const videoBox = document.getElementById('video-box');
-  const video = document.getElementById('video-el');
-  const canvas = document.getElementById('frame-canvas');
-  const ctx = canvas.getContext('2d');
+  function $(id) { return document.getElementById(id); }
 
-  const infoFrame = document.getElementById('info-frame');
-  const infoTime = document.getElementById('info-time');
-  const infoRes = document.getElementById('info-res');
-  const infoFps = document.getElementById('info-fps');
-  const infoLiveElapsed = document.getElementById('info-live-elapsed');
-  const infoLiveBuffer = document.getElementById('info-live-buffer');
-  const infoLiveProto = document.getElementById('info-live-proto');
+  // ========== 双槽位播放器实例 ==========
+  const slots = {
+    A: {
+      video: $('video-A'), canvas: $('canvas-A'),
+      box: $('video-box-A'), stage: $('stage-A'),
+      infoFrame: $('frame-A'), infoTime: $('time-A'), infoRes: $('res-A'),
+      liveElapsed: $('live-elapsed-A'), liveBuffer: $('live-buffer-A'), liveProto: $('live-proto-A'),
+      ctx: null, ready: false, objectUrl: null, file: null, codecInfo: null,
+      totalFrames: 0
+    },
+    B: {
+      video: $('video-B'), canvas: $('canvas-B'),
+      box: $('video-box-B'), stage: $('stage-B'),
+      infoFrame: $('frame-B'), infoTime: $('time-B'), infoRes: $('res-B'),
+      liveElapsed: null, liveBuffer: null, liveProto: null,
+      ctx: null, ready: false, objectUrl: null, file: null, codecInfo: null,
+      totalFrames: 0
+    }
+  };
+  slots.A.ctx = slots.A.canvas.getContext('2d');
+  slots.B.ctx = slots.B.canvas.getContext('2d');
 
-  const progressBar = document.getElementById('progress-bar');
-  const progressFill = document.getElementById('progress-fill');
-
-  const timelineStrip = document.getElementById('timeline-strip');
-  const timelineCanvas = document.getElementById('timeline-canvas');
+  const timelineCanvas = $('timeline-canvas');
   const timelineCtx = timelineCanvas.getContext('2d');
-  const timelineCursor = document.getElementById('timeline-cursor');
 
-  const btnPlay = document.getElementById('btn-play');
-  const btnPrev = document.getElementById('btn-prev');
-  const btnNext = document.getElementById('btn-next');
-  const btnPrev10 = document.getElementById('btn-prev-10');
-  const btnNext10 = document.getElementById('btn-next-10');
-  const btnStart = document.getElementById('btn-start');
-  const btnEnd = document.getElementById('btn-end');
-  const btnScreenshot = document.getElementById('btn-screenshot');
-  const btnNew = document.getElementById('btn-new');
-  const btnZoomIn = document.getElementById('btn-zoom-in');
-  const btnZoomOut = document.getElementById('btn-zoom-out');
-  const btnZoomReset = document.getElementById('btn-zoom-reset');
-  const zoomLevel = document.getElementById('zoom-level');
-  const fpsInput = document.getElementById('fps-input');
-  const speedBtns = document.querySelectorAll('.speed-btn');
-
-  const screenshotToast = document.getElementById('screenshot-toast');
-  const screenshotImg = document.getElementById('screenshot-img');
-  const msgToast = document.getElementById('msg-toast');
-
-  // 转码面板 DOM
-  const transcodeOverlay = document.getElementById('transcode-overlay');
-  const transcodeCodec = document.getElementById('transcode-codec');
-  const transcodeMsg = document.getElementById('transcode-msg');
-  const transcodeProgressFill = document.getElementById('transcode-progress-fill');
-  const transcodeDetail = document.getElementById('transcode-detail');
-  const btnTranscode = document.getElementById('btn-transcode');
-  const btnTranscodeCancel = document.getElementById('btn-transcode-cancel');
-
-  // ========== State ==========
+  // ========== 全局状态 ==========
   let fps = 30;
   let frameDuration = 1 / fps;
-  let totalFrames = 0;
   let currentZoom = 1;
   let isPlaying = false;
-  let videoReady = false;
-  let timelineThumbs = [];
-  let objectUrl = null;
-
-  // 直播状态
   let liveMode = false;
   let hls = null;
   let flvPlayer = null;
   let liveInfoTimer = null;
-
-  // 转码相关状态
-  let ffmpegInstance = null;
-  let currentFile = null;
-  let isTranscoding = false;
-  let currentCodecInfo = null;
+  let timelineThumbs = [];
   let supportCheckTimer = null;
 
-  // ========== 通用工具 ==========
+  // 转码状态
+  let ffmpegInstance = null;
+  let transcodeSlot = null;       // 正在转码的槽位
+  let isTranscoding = false;
+
+  // ========== 工具 ==========
   function loadScript(src) {
     return new Promise(function(resolve, reject) {
       const s = document.createElement('script');
@@ -667,14 +645,19 @@
       document.head.appendChild(s);
     });
   }
-
   function showMsg(text) {
-    msgToast.textContent = text;
-    msgToast.style.display = 'block';
+    const t = $('msg-toast');
+    t.textContent = text;
+    t.style.display = 'block';
     clearTimeout(showMsg._timer);
-    showMsg._timer = setTimeout(function() { msgToast.style.display = 'none'; }, 5000);
+    showMsg._timer = setTimeout(function() { t.style.display = 'none'; }, 5000);
   }
-
+  function formatTime(t) {
+    if (!isFinite(t)) t = 0;
+    const m = Math.floor(t / 60);
+    const s = t - m * 60;
+    return String(m).padStart(2, '0') + ':' + s.toFixed(3).padStart(6, '0');
+  }
   function formatLiveTime(t) {
     if (!isFinite(t) || t < 0) t = 0;
     const h = Math.floor(t / 3600);
@@ -682,147 +665,113 @@
     const s = Math.floor(t % 60);
     return [h, m, s].map(function(n) { return String(n).padStart(2, '0'); }).join(':');
   }
-
-  // ========== 流类型检测 ==========
-  function detectStreamType(input) {
-    const s = String(input || '').toLowerCase();
-    const path = s.split('?')[0].split('#')[0];
-    if (path.indexOf('.m3u8') >= 0) return 'hls';
-    if (path.indexOf('.flv') >= 0) return 'flv';
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(v, hi)); }
+  function streamType(input) {
+    const s = String(input || '').toLowerCase().split('?')[0].split('#')[0];
+    if (s.indexOf('.m3u8') >= 0) return 'hls';
+    if (s.indexOf('.flv') >= 0) return 'flv';
     return 'vod';
   }
 
-  // ========== 直播：进入 / 退出模式 ==========
+  // ========== 双画面布局 ==========
+  function isDual() {
+    return slots.A.ready && slots.B.ready && !liveMode;
+  }
+  function refreshLayout() {
+    const dual = isDual();
+    slots.B.stage.classList.toggle('hidden', liveMode);
+    slots.B.stage.classList.toggle('single', false);
+    // 双画面时隐藏时间轴缩略图条（对比用进度条即可）
+    $('timeline-strip').style.display = (dual || liveMode) ? 'none' : '';
+  }
+
+  // ========== 直播：进入/退出 ==========
   function enterLiveMode(proto) {
     liveMode = true;
-    playerWrap.classList.add('mode-live');
-    videoBox.classList.remove('canvas-mode');
-    infoLiveProto.textContent = proto.toUpperCase();
+    $('player-wrap').classList.add('mode-live');
+    slots.A.box.classList.remove('canvas-mode');
+    slots.B.box.classList.remove('canvas-mode');
+    slots.A.liveProto.textContent = proto.toUpperCase();
+    refreshLayout();
     startLiveInfoLoop();
   }
-
   function exitLiveMode() {
     liveMode = false;
-    playerWrap.classList.remove('mode-live');
+    $('player-wrap').classList.remove('mode-live');
     stopLiveInfoLoop();
+    refreshLayout();
   }
-
   function destroyLive() {
     stopLiveInfoLoop();
-    if (hls) {
-      try { hls.destroy(); } catch (e) { /* ignore */ }
-      hls = null;
-    }
+    if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
     if (flvPlayer) {
-      try {
-        flvPlayer.pause();
-        flvPlayer.unload();
-        flvPlayer.detachMediaElement();
-        flvPlayer.destroy();
-      } catch (e) { /* ignore */ }
+      try { flvPlayer.pause(); flvPlayer.unload(); flvPlayer.detachMediaElement(); flvPlayer.destroy(); } catch (e) {}
       flvPlayer = null;
     }
     exitLiveMode();
   }
-
-  function startLiveInfoLoop() {
-    stopLiveInfoLoop();
-    liveInfoTimer = setInterval(updateLiveInfo, 1000);
-  }
-
-  function stopLiveInfoLoop() {
-    if (liveInfoTimer) {
-      clearInterval(liveInfoTimer);
-      liveInfoTimer = null;
-    }
-  }
-
+  function startLiveInfoLoop() { stopLiveInfoLoop(); liveInfoTimer = setInterval(updateLiveInfo, 1000); }
+  function stopLiveInfoLoop() { if (liveInfoTimer) { clearInterval(liveInfoTimer); liveInfoTimer = null; } }
   function updateLiveInfo() {
     if (!liveMode) return;
-    infoLiveElapsed.textContent = formatLiveTime(video.currentTime || 0);
-
-    // 缓冲余量：优先取 hls.latency，否则用 buffered 末端与当前播放点的差
+    const v = slots.A.video;
+    slots.A.liveElapsed.textContent = formatLiveTime(v.currentTime || 0);
     let buffer = null;
     if (hls && typeof hls.latency === 'number' && isFinite(hls.latency)) {
       buffer = hls.latency;
-    } else if (video.buffered && video.buffered.length > 0) {
-      const be = video.buffered.end(video.buffered.length - 1);
-      if (isFinite(be)) buffer = Math.max(0, be - video.currentTime);
+    } else if (v.buffered && v.buffered.length > 0) {
+      const be = v.buffered.end(v.buffered.length - 1);
+      if (isFinite(be)) buffer = Math.max(0, be - v.currentTime);
     }
-    infoLiveBuffer.textContent = (buffer != null && isFinite(buffer))
-      ? (buffer >= 0.1 ? buffer.toFixed(1) + 's' : '<0.1s')
-      : '-';
-
-    if (video.videoWidth) {
-      infoRes.textContent = video.videoWidth + '×' + video.videoHeight;
-    }
+    slots.A.liveBuffer.textContent = (buffer != null && isFinite(buffer))
+      ? (buffer >= 0.1 ? buffer.toFixed(1) + 's' : '<0.1s') : '-';
+    if (v.videoWidth) slots.A.infoRes.textContent = v.videoWidth + '×' + v.videoHeight;
   }
 
-  // ========== 直播：HLS ==========
   async function playHls(url) {
     showPlayer();
     enterLiveMode('hls');
-    try {
-      await loadScript(HLS_CDN);
-    } catch (e) {
-      showMsg('HLS 解码库加载失败，请检查网络');
-      return;
-    }
+    try { await loadScript(HLS_CDN); }
+    catch (e) { showMsg('HLS 解码库加载失败，请检查网络'); return; }
 
     if (window.Hls && window.Hls.isSupported()) {
-      hls = new window.Hls({
-        liveDurationInfinity: true,
-        backBufferLength: 0,
-        maxBufferLength: 30
-      });
+      hls = new window.Hls({ liveDurationInfinity: true, backBufferLength: 0, maxBufferLength: 30 });
       hls.loadSource(url);
-      hls.attachMedia(video);
+      hls.attachMedia(slots.A.video);
       hls.on(window.Hls.Events.MANIFEST_PARSED, function() {
-        video.play().catch(function() { /* 等待用户交互 */ });
+        slots.A.video.play().catch(function() {});
       });
       hls.on(window.Hls.Events.ERROR, function(evt, data) {
         if (data.fatal) {
           const type = data.type === window.Hls.ErrorTypes.NETWORK_ERROR ? '网络错误'
             : data.type === window.Hls.ErrorTypes.MEDIA_ERROR ? '媒体错误' : data.type;
           showMsg('直播流加载失败：' + type + '，请检查流地址是否可用');
-          if (data.type === window.Hls.ErrorTypes.NETWORK_ERROR) {
-            try { hls.startLoad(); } catch (e) { /* ignore */ }
-          }
+          if (data.type === window.Hls.ErrorTypes.NETWORK_ERROR) { try { hls.startLoad(); } catch (e) {} }
         }
       });
-    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      // Safari 原生 HLS
-      video.src = url;
-      video.addEventListener('loadedmetadata', function() {
-        video.play().catch(function() { /* ignore */ });
-      }, { once: true });
+    } else if (slots.A.video.canPlayType('application/vnd.apple.mpegurl')) {
+      slots.A.video.src = url;
+      slots.A.video.addEventListener('loadedmetadata', function() { slots.A.video.play().catch(function() {}); }, { once: true });
     } else {
       showMsg('当前浏览器不支持 HLS 直播');
     }
   }
 
-  // ========== 直播：FLV ==========
   async function playFlv(url) {
     showPlayer();
     enterLiveMode('flv');
-    try {
-      await loadScript(FLV_CDN);
-    } catch (e) {
-      showMsg('FLV 解码库加载失败，请检查网络');
-      return;
-    }
+    try { await loadScript(FLV_CDN); }
+    catch (e) { showMsg('FLV 解码库加载失败，请检查网络'); return; }
 
     if (window.flvjs && window.flvjs.isSupported()) {
       flvPlayer = window.flvjs.createPlayer(
         { type: 'flv', url: url, isLive: true },
         { enableStashBuffer: false, stashInitialSize: 256, autoCleanupSourceBuffer: true }
       );
-      flvPlayer.attachMediaElement(video);
+      flvPlayer.attachMediaElement(slots.A.video);
       flvPlayer.load();
-      flvPlayer.play().catch(function() { /* ignore */ });
-      flvPlayer.on(window.flvjs.Events.ERROR, function(err, detail) {
-        showMsg('FLV 直播流加载失败，请检查流地址');
-      });
+      flvPlayer.play().catch(function() {});
+      flvPlayer.on(window.flvjs.Events.ERROR, function() { showMsg('FLV 直播流加载失败，请检查流地址'); });
     } else {
       showMsg('当前浏览器不支持 FLV 直播');
     }
@@ -832,48 +781,28 @@
   async function detectVideoCodec(file) {
     try {
       const sliceSize = Math.min(file.size, 2 * 1024 * 1024);
-      const slice = file.slice(0, sliceSize);
-      const buf = await slice.arrayBuffer();
+      const buf = await file.slice(0, sliceSize).arrayBuffer();
       const bytes = new Uint8Array(buf);
-
       let text = '';
       for (let i = 0; i < bytes.length; i++) {
         const c = bytes[i];
-        if (c >= 32 && c < 127) {
-          text += String.fromCharCode(c);
-        } else {
-          text += ' ';
-        }
+        text += (c >= 32 && c < 127) ? String.fromCharCode(c) : ' ';
       }
-
-      if (text.includes('vvc1') || text.includes('vvcC') || text.includes('vvi1') ||
-          text.includes('vvc ') || text.includes('vvcc')) {
+      if (text.includes('vvc1') || text.includes('vvcC') || text.includes('vvi1') || text.includes('vvc ') || text.includes('vvcc'))
         return { codec: 'vvc', name: 'H.266 / VVC', supported: false };
-      }
-      if (text.includes('hev1') || text.includes('hvc1') || text.includes('hvcC') ||
-          text.includes('hevc') || text.includes('HEVC')) {
+      if (text.includes('hev1') || text.includes('hvc1') || text.includes('hvcC') || text.includes('hevc') || text.includes('HEVC'))
         return { codec: 'hevc', name: 'H.265 / HEVC', supported: false };
-      }
       if (text.includes('av01') || text.includes('av1C') || text.includes('AV01')) {
-        const av1Supported = video.canPlayType('video/mp4; codecs="av01.0.00M.08"') !== '';
+        const av1Supported = slots.A.video.canPlayType('video/mp4; codecs="av01.0.00M.08"') !== '';
         return { codec: 'av1', name: 'AV1', supported: av1Supported };
       }
-      if (text.includes('avc1') || text.includes('avcC') || text.includes('AVC ')) {
+      if (text.includes('avc1') || text.includes('avcC') || text.includes('AVC '))
         return { codec: 'avc', name: 'H.264 / AVC', supported: true };
-      }
-      if (text.includes('vp09') || text.includes('vp08') || text.includes('VP90')) {
+      if (text.includes('vp09') || text.includes('vp08') || text.includes('VP90'))
         return { codec: 'vp9', name: 'VP9', supported: true };
-      }
-      if (text.includes('vp80')) {
-        return { codec: 'vp8', name: 'VP8', supported: true };
-      }
-      const ftypIdx = text.indexOf('ftyp');
-      if (ftypIdx >= 0) {
-        return { codec: 'unknown-mp4', name: '未知编码 (MP4)', supported: false };
-      }
-      if (text.includes('webm') || text.includes('WEBM')) {
-        return { codec: 'webm', name: 'WebM', supported: true };
-      }
+      if (text.includes('vp80')) return { codec: 'vp8', name: 'VP8', supported: true };
+      if (text.indexOf('ftyp') >= 0) return { codec: 'unknown-mp4', name: '未知编码 (MP4)', supported: false };
+      if (text.includes('webm') || text.includes('WEBM')) return { codec: 'webm', name: 'WebM', supported: true };
       return { codec: 'unknown', name: '未知格式', supported: false };
     } catch (e) {
       return { codec: 'unknown', name: '检测失败', supported: false };
@@ -881,60 +810,49 @@
   }
 
   // ========== 转码面板 ==========
-  function showTranscodePanel(codecInfo, isFallback) {
-    currentCodecInfo = codecInfo;
-    transcodeOverlay.style.display = 'flex';
-    transcodeCodec.textContent = codecInfo.name;
-    if (isFallback) {
-      transcodeMsg.textContent = '该视频无法正常解码，尝试转码后播放';
-    } else {
-      transcodeMsg.textContent = '浏览器不支持直接播放此编码格式';
-    }
-    transcodeProgressFill.style.width = '0%';
-    transcodeDetail.textContent = '';
-    btnTranscode.style.display = 'inline-flex';
-    btnTranscode.disabled = false;
-    btnTranscode.textContent = '开始转码 (→ H.264)';
+  function showTranscodePanel(codecInfo, slotKey, isFallback) {
+    transcodeSlot = slotKey;
+    $('transcode-overlay').style.display = 'flex';
+    $('transcode-codec').textContent = codecInfo.name;
+    $('transcode-msg').textContent = isFallback
+      ? '该视频无法正常解码，尝试转码后播放'
+      : '浏览器不支持直接播放此编码格式';
+    $('transcode-progress-fill').style.width = '0%';
+    $('transcode-detail').textContent = '';
+    const btn = $('btn-transcode');
+    btn.style.display = 'inline-flex';
+    btn.disabled = false;
+    btn.textContent = '开始转码 (→ H.264)';
   }
-
-  function hideTranscodePanel() {
-    transcodeOverlay.style.display = 'none';
-  }
-
+  function hideTranscodePanel() { $('transcode-overlay').style.display = 'none'; }
   function updateTranscodeProgress(percent, detail) {
-    transcodeProgressFill.style.width = Math.min(100, Math.max(0, percent)) + '%';
-    if (detail) transcodeDetail.textContent = detail;
+    $('transcode-progress-fill').style.width = clamp(percent, 0, 100) + '%';
+    if (detail) $('transcode-detail').textContent = detail;
   }
 
-  // ========== ffmpeg.wasm 转码 ==========
   async function startTranscode() {
-    if (!currentFile || isTranscoding) return;
+    if (!transcodeSlot || isTranscoding) return;
+    const slot = slots[transcodeSlot];
+    if (!slot.file) return;
     isTranscoding = true;
-    btnTranscode.disabled = true;
+    $('btn-transcode').disabled = true;
 
     try {
       updateTranscodeProgress(2, '正在加载转码引擎...');
-
       let FFmpeg, fetchFile;
       if (!ffmpegInstance) {
         const [{ FFmpeg: FF }, { fetchFile: FFfetch }] = await Promise.all([
-          import(FFMPEG_CDN.ffmpeg),
-          import(FFMPEG_CDN.util)
+          import(FFMPEG_CDN.ffmpeg), import(FFMPEG_CDN.util)
         ]);
-        FFmpeg = FF;
-        fetchFile = FFfetch;
-
+        FFmpeg = FF; fetchFile = FFfetch;
         ffmpegInstance = new FFmpeg();
-        ffmpegInstance.on('log', ({ message }) => {
-          if (!message.includes('frame=') && !message.includes('size=')) {
-            console.log('[ffmpeg]', message);
-          }
+        ffmpegInstance.on('log', function({ message }) {
+          if (!message.includes('frame=') && !message.includes('size=')) console.log('[ffmpeg]', message);
         });
-        ffmpegInstance.on('progress', ({ progress }) => {
+        ffmpegInstance.on('progress', function({ progress }) {
           const pct = Math.min(92, 8 + Math.round(progress * 92));
           updateTranscodeProgress(pct, '转码中... ' + pct + '%');
         });
-
         await ffmpegInstance.load();
       } else {
         const { fetchFile: FFfetch } = await import(FFMPEG_CDN.util);
@@ -942,550 +860,491 @@
       }
 
       updateTranscodeProgress(5, '读取视频文件...');
-      await ffmpegInstance.writeFile('input.mp4', await fetchFile(currentFile));
-
-      updateTranscodeProgress(8, '开始转码 H.266 → H.264（预计需要几分钟）...');
-
+      await ffmpegInstance.writeFile('input.mp4', await fetchFile(slot.file));
+      updateTranscodeProgress(8, '开始转码（预计需要几分钟）...');
       await ffmpegInstance.exec([
-        '-i', 'input.mp4',
-        '-c:v', 'libx264',
-        '-preset', 'ultrafast',
-        '-crf', '28',
-        '-pix_fmt', 'yuv420p',
-        '-c:a', 'aac',
-        '-b:a', '128k',
-        '-movflags', '+faststart',
-        '-y',
-        'output.mp4'
+        '-i', 'input.mp4', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28',
+        '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', '-y', 'output.mp4'
       ]);
 
       updateTranscodeProgress(95, '读取转码结果...');
       const data = await ffmpegInstance.readFile('output.mp4');
-
-      try {
-        await ffmpegInstance.deleteFile('input.mp4');
-        await ffmpegInstance.deleteFile('output.mp4');
-      } catch (e) { /* ignore */ }
+      try { await ffmpegInstance.deleteFile('input.mp4'); await ffmpegInstance.deleteFile('output.mp4'); } catch (e) {}
 
       const blob = new Blob([data.buffer], { type: 'video/mp4' });
-      const transcodeUrl = URL.createObjectURL(blob);
-
-      cleanupObjectUrl();
-      objectUrl = transcodeUrl;
-      video.src = transcodeUrl;
-      video.load();
+      const url = URL.createObjectURL(blob);
+      cleanupSlotUrl(slot);
+      slot.objectUrl = url;
+      slot.video.src = url;
+      slot.video.load();
       showPlayer();
       hideTranscodePanel();
-
       updateTranscodeProgress(100, '转码完成！');
-
     } catch (err) {
       console.error('Transcode error:', err);
       updateTranscodeProgress(0, '❌ 转码失败: ' + (err.message || '未知错误'));
-      btnTranscode.disabled = false;
-      btnTranscode.textContent = '重试转码';
+      $('btn-transcode').disabled = false;
+      $('btn-transcode').textContent = '重试转码';
       if (err.message && err.message.includes('codec')) {
-        transcodeDetail.textContent = '当前转码引擎暂不支持 H.266 解码，建议先用本地 ffmpeg 转码';
+        $('transcode-detail').textContent = '当前转码引擎暂不支持 H.266 解码，建议先用本地 ffmpeg 转码';
       }
     } finally {
       isTranscoding = false;
     }
   }
 
-  // ========== 文件加载（点播）==========
-  dropZone.addEventListener('click', function() { fileInput.click(); });
-  dropZone.addEventListener('dragover', function(e) {
-    e.preventDefault();
-    dropZone.classList.add('dragover');
-  });
-  dropZone.addEventListener('dragleave', function() {
-    dropZone.classList.remove('dragover');
-  });
-  dropZone.addEventListener('drop', function(e) {
-    e.preventDefault();
-    dropZone.classList.remove('dragover');
-    if (e.dataTransfer.files.length > 0) {
-      handleFileLoad(e.dataTransfer.files[0]);
-    }
-  });
-  fileInput.addEventListener('change', function() {
-    if (this.files.length > 0) handleFileLoad(this.files[0]);
-  });
-  urlLoadBtn.addEventListener('click', handleUrlLoad);
-  urlInput.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') handleUrlLoad();
-  });
-
-  async function handleFileLoad(file) {
+  // ========== 槽位加载 ==========
+  async function handleFileLoad(slotKey, file) {
     clearSupportCheck();
-    destroyLive();
-    cleanupObjectUrl();
-    resetPlayer();
-
-    currentFile = file;
+    if (slotKey === 'A') destroyLive();
+    const slot = slots[slotKey];
+    cleanupSlotUrl(slot);
+    slot.file = file;
+    slot.codecInfo = null;
+    slot.ready = false;
+    resetSlot(slot);
 
     const codecInfo = await detectVideoCodec(file);
+    slot.codecInfo = codecInfo;
 
     if (!codecInfo.supported && codecInfo.codec !== 'av1') {
-      showTranscodePanel(codecInfo, false);
+      showTranscodePanel(codecInfo, slotKey, false);
       return;
     }
 
-    objectUrl = URL.createObjectURL(file);
-    video.src = objectUrl;
-    video.load();
+    slot.objectUrl = URL.createObjectURL(file);
+    slot.video.src = slot.objectUrl;
+    slot.video.load();
     showPlayer();
 
     if (codecInfo.codec === 'av1' || codecInfo.codec === 'unknown-mp4' || codecInfo.codec === 'unknown') {
       supportCheckTimer = setTimeout(function() {
-        if (!videoReady && video.videoWidth === 0) {
-          video.pause();
-          video.removeAttribute('src');
-          showTranscodePanel(codecInfo, true);
+        if (!slot.ready && slot.video.videoWidth === 0) {
+          slot.video.pause();
+          slot.video.removeAttribute('src');
+          showTranscodePanel(codecInfo, slotKey, true);
         }
       }, 4000);
     }
   }
 
-  async function handleUrlLoad() {
-    const url = urlInput.value.trim();
+  async function handleUrlLoad(slotKey) {
+    const url = (slotKey === 'A' ? $('url-A') : $('url-B')).value.trim();
     if (!url) return;
 
     clearSupportCheck();
-    destroyLive();
-    cleanupObjectUrl();
-    resetPlayer();
-    currentFile = null;
+    if (slotKey === 'A') destroyLive();
+    const slot = slots[slotKey];
+    cleanupSlotUrl(slot);
+    slot.file = null;
+    slot.ready = false;
+    resetSlot(slot);
 
-    const type = detectStreamType(url);
+    const type = streamType(url);
 
-    if (type === 'hls') {
-      playHls(url);
-    } else if (type === 'flv') {
-      playFlv(url);
-    } else {
-      // 点播 URL
-      video.src = url;
-      video.load();
-      showPlayer();
-
-      supportCheckTimer = setTimeout(function() {
-        if (!videoReady && video.videoWidth === 0) {
-          video.pause();
-          video.removeAttribute('src');
-          showTranscodePanel({ codec: 'unknown', name: '未知编码 (URL)', supported: false }, true);
-        }
-      }, 5000);
+    if (slotKey === 'A' && type === 'hls') { playHls(url); return; }
+    if (slotKey === 'A' && type === 'flv') { playFlv(url); return; }
+    if (slotKey === 'B' && (type === 'hls' || type === 'flv')) {
+      showMsg('直播流请放到「视频 A」加载，B 槽仅支持点播文件');
+      return;
     }
+
+    slot.video.src = url;
+    slot.video.load();
+    showPlayer();
+
+    supportCheckTimer = setTimeout(function() {
+      if (!slot.ready && slot.video.videoWidth === 0) {
+        slot.video.pause();
+        slot.video.removeAttribute('src');
+        showTranscodePanel({ codec: 'unknown', name: '未知编码 (URL)', supported: false }, slotKey, true);
+      }
+    }, 5000);
   }
 
-  function clearSupportCheck() {
-    if (supportCheckTimer) {
-      clearTimeout(supportCheckTimer);
-      supportCheckTimer = null;
-    }
+  function clearSupportCheck() { if (supportCheckTimer) { clearTimeout(supportCheckTimer); supportCheckTimer = null; } }
+
+  function cleanupSlotUrl(slot) {
+    if (slot.objectUrl) { URL.revokeObjectURL(slot.objectUrl); slot.objectUrl = null; }
   }
 
-  function resetPlayer() {
-    video.pause();
-    video.removeAttribute('src');
-    video.load();
-    isPlaying = false;
-    videoReady = false;
-    btnPlay.innerHTML = '▶ 播放 <span class="key">Space</span>';
-    videoBox.classList.remove('canvas-mode');
-    timelineThumbs = [];
-    infoFrame.textContent = '0 / 0';
-    infoTime.textContent = '00:00.000 / 00:00.000';
-    infoRes.textContent = '-';
-    infoFps.textContent = '-';
-    infoLiveElapsed.textContent = '00:00:00';
-    infoLiveBuffer.textContent = '-';
-    progressFill.style.width = '0%';
-    timelineCursor.style.left = '0%';
-    exitLiveMode();
-  }
-
-  function cleanupObjectUrl() {
-    if (objectUrl) {
-      URL.revokeObjectURL(objectUrl);
-      objectUrl = null;
-    }
+  function resetSlot(slot) {
+    slot.video.pause();
+    slot.video.removeAttribute('src');
+    slot.video.load();
+    slot.box.classList.remove('canvas-mode');
+    slot.totalFrames = 0;
+    if (slot.infoFrame) slot.infoFrame.textContent = '0 / 0';
+    if (slot.infoTime) slot.infoTime.textContent = '00:00.000 / 00:00.000';
+    slot.infoRes.textContent = '-';
+    if (slot.liveElapsed) slot.liveElapsed.textContent = '00:00:00';
+    if (slot.liveBuffer) slot.liveBuffer.textContent = '-';
   }
 
   function showPlayer() {
-    dropZone.style.display = 'none';
-    playerWrap.classList.add('active');
-    videoReady = false;
+    $('player-wrap').classList.add('active');
+    refreshLayout();
+  }
+
+  function resetAll() {
+    clearSupportCheck();
+    destroyLive();
+    isPlaying = false;
+    $('btn-play').innerHTML = '▶ 播放 <span class="key">Space</span>';
+    $('progress-fill').style.width = '0%';
+    $('timeline-cursor').style.left = '0%';
+    timelineThumbs = [];
+    ['A', 'B'].forEach(function(k) {
+      const s = slots[k];
+      resetSlot(s);
+      s.ready = false;
+      s.file = null;
+      s.codecInfo = null;
+    });
   }
 
   // 换视频
-  btnNew.addEventListener('click', function() {
-    clearSupportCheck();
-    destroyLive();
-    resetPlayer();
-    playerWrap.classList.remove('active');
-    dropZone.style.display = '';
-    cleanupObjectUrl();
-    urlInput.value = '';
-    currentFile = null;
-    currentCodecInfo = null;
+  $('btn-new').addEventListener('click', function() {
+    resetAll();
+    $('player-wrap').classList.remove('active');
+    ['A', 'B'].forEach(function(k) { cleanupSlotUrl(slots[k]); });
+    $('url-A').value = '';
+    $('url-B').value = '';
     hideTranscodePanel();
   });
 
-  // 转码按钮
-  btnTranscode.addEventListener('click', startTranscode);
-  btnTranscodeCancel.addEventListener('click', function() {
+  $('btn-transcode').addEventListener('click', startTranscode);
+  $('btn-transcode-cancel').addEventListener('click', function() {
     hideTranscodePanel();
-    resetPlayer();
-    playerWrap.classList.remove('active');
-    dropZone.style.display = '';
-    cleanupObjectUrl();
-    currentFile = null;
-  });
-
-  // ========== 视频就绪 ==========
-  video.addEventListener('loadedmetadata', function() {
-    clearSupportCheck();
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    infoRes.textContent = video.videoWidth + '×' + video.videoHeight;
-    videoReady = true;
-
-    if (liveMode) {
-      updateLiveInfo();
-      return;
-    }
-
-    // 点播逻辑
-    fps = parseInt(fpsInput.value, 10) || 30;
-    frameDuration = 1 / fps;
-    totalFrames = Math.ceil(video.duration * fps);
-    infoFps.textContent = fps + ' fps';
-    video.pause();
-    video.currentTime = 0;
-
-    generateTimeline();
-    updateInfo();
-  });
-
-  video.addEventListener('loadeddata', function() {
-    if (videoReady && !liveMode) {
-      drawFrame();
-      videoBox.classList.add('canvas-mode');
+    if (transcodeSlot) {
+      const slot = slots[transcodeSlot];
+      slot.file = null;
+      resetSlot(slot);
+      refreshLayout();
     }
   });
 
-  video.addEventListener('seeked', function() {
-    if (liveMode) return;
-    drawFrame();
-    if (!isPlaying) {
-      videoBox.classList.add('canvas-mode');
-    }
-    updateInfo();
-  });
+  // ========== 槽位就绪事件 ==========
+  ['A', 'B'].forEach(function(k) {
+    const slot = slots[k];
+    slot.video.addEventListener('loadedmetadata', function() {
+      clearSupportCheck();
+      slot.canvas.width = slot.video.videoWidth;
+      slot.canvas.height = slot.video.videoHeight;
+      slot.infoRes.textContent = slot.video.videoWidth + '×' + slot.video.videoHeight;
+      slot.ready = true;
 
-  video.addEventListener('timeupdate', function() {
-    if (liveMode) {
-      updateLiveInfo();
-      return;
-    }
-    updateInfo();
-    updateProgress();
-    updateTimelineCursor();
-  });
+      if (liveMode && k === 'A') { updateLiveInfo(); return; }
 
-  video.addEventListener('ended', function() {
-    if (liveMode) return;
-    isPlaying = false;
-    btnPlay.innerHTML = '▶ 播放 <span class="key">Space</span>';
-  });
+      slot.totalFrames = Math.ceil(slot.video.duration * fps);
+      slot.video.pause();
+      slot.video.currentTime = 0;
+      refreshLayout();
+      // 仅单视频时生成时间轴
+      if (k === 'A' && !slots.B.ready) generateTimeline();
+      updateSlotInfo(slot);
+    });
 
-  video.addEventListener('error', function(e) {
-    if (liveMode) return; // 直播错误由 hls/flv 的 error 事件处理
-    console.error('Video error:', video.error);
-    clearSupportCheck();
-    if (currentFile && !videoReady) {
-      showTranscodePanel(currentCodecInfo || { codec: 'unknown', name: '未知编码', supported: false }, true);
-    }
+    slot.video.addEventListener('loadeddata', function() {
+      if (slot.ready && !liveMode) {
+        drawFrame(slot);
+        slot.box.classList.add('canvas-mode');
+      }
+    });
+
+    slot.video.addEventListener('seeked', function() {
+      if (liveMode) return;
+      drawFrame(slot);
+      if (!isPlaying) slot.box.classList.add('canvas-mode');
+      updateSlotInfo(slot);
+    });
+
+    slot.video.addEventListener('timeupdate', function() {
+      if (liveMode) { if (k === 'A') updateLiveInfo(); return; }
+      updateSlotInfo(slot);
+      if (k === 'A') { updateProgress(); updateTimelineCursor(); }
+    });
+
+    slot.video.addEventListener('ended', function() {
+      if (liveMode) return;
+      if (k === 'A') {
+        isPlaying = false;
+        $('btn-play').innerHTML = '▶ 播放 <span class="key">Space</span>';
+      }
+    });
+
+    slot.video.addEventListener('error', function() {
+      if (liveMode) return;
+      clearSupportCheck();
+      if (slot.file && !slot.ready) {
+        showTranscodePanel(slot.codecInfo || { codec: 'unknown', name: '未知编码', supported: false }, k, true);
+      }
+    });
   });
 
   // ========== 信息更新 ==========
-  function getCurrentFrame() {
-    return Math.round(video.currentTime * fps);
+  function currentFrame(slot) { return Math.round(slot.video.currentTime * fps); }
+  function updateSlotInfo(slot) {
+    if (!slot.ready || liveMode) return;
+    if (slot.infoFrame) slot.infoFrame.textContent = currentFrame(slot) + ' / ' + slot.totalFrames;
+    if (slot.infoTime) slot.infoTime.textContent = formatTime(slot.video.currentTime) + ' / ' + formatTime(slot.video.duration);
   }
-
-  function formatTime(t) {
-    const m = Math.floor(t / 60);
-    const s = t - m * 60;
-    return String(m).padStart(2, '0') + ':' + s.toFixed(3).padStart(6, '0');
-  }
-
-  function updateInfo() {
-    if (!videoReady || liveMode) return;
-    const cf = getCurrentFrame();
-    infoFrame.textContent = cf + ' / ' + totalFrames;
-    infoTime.textContent = formatTime(video.currentTime) + ' / ' + formatTime(video.duration);
-    updateProgress();
-    updateTimelineCursor();
-  }
-
   function updateProgress() {
-    if (!videoReady) return;
-    const pct = (video.currentTime / video.duration) * 100;
-    progressFill.style.width = pct + '%';
+    const v = slots.A.video;
+    if (!slots.A.ready || !v.duration) return;
+    $('progress-fill').style.width = (v.currentTime / v.duration * 100) + '%';
   }
-
   function updateTimelineCursor() {
-    if (!videoReady) return;
-    const pct = (video.currentTime / video.duration) * 100;
-    timelineCursor.style.left = pct + '%';
+    const v = slots.A.video;
+    if (!slots.A.ready || !v.duration) return;
+    $('timeline-cursor').style.left = (v.currentTime / v.duration * 100) + '%';
   }
 
-  // ========== 绘帧到 Canvas ==========
-  function drawFrame() {
-    if (!videoReady) return;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  function drawFrame(slot) {
+    if (!slot.ready) return;
+    slot.ctx.drawImage(slot.video, 0, 0, slot.canvas.width, slot.canvas.height);
   }
 
-  // ========== 逐帧操作（仅点播）==========
-  function stepFrame(n) {
-    if (!videoReady || liveMode) return;
-    pauseVideo();
-    videoBox.classList.add('canvas-mode');
-    let target = video.currentTime + n * frameDuration;
-    target = Math.max(0, Math.min(target, video.duration));
-    video.currentTime = target;
-  }
-
-  function seekToFrame(f) {
-    if (!videoReady || liveMode) return;
-    pauseVideo();
-    videoBox.classList.add('canvas-mode');
-    f = Math.max(0, Math.min(f, totalFrames));
-    video.currentTime = f * frameDuration;
-  }
-
-  function seekToTime(t) {
-    if (!videoReady || liveMode) return;
-    t = Math.max(0, Math.min(t, video.duration));
-    video.currentTime = t;
-    if (!isPlaying) {
-      videoBox.classList.add('canvas-mode');
+  // ========== 同步控制 ==========
+  function alignBToA() {
+    if (!slots.B.ready || !slots.A.ready) return;
+    const t = clamp(slots.A.video.currentTime, 0, slots.B.video.duration || 0);
+    if (Math.abs(slots.B.video.currentTime - t) > 0.001) {
+      slots.B.video.currentTime = t;
     }
   }
 
-  // ========== 播放控制 ==========
   function togglePlay() {
-    if (!videoReady) return;
-    if (isPlaying) {
-      pauseVideo();
-    } else {
-      playVideo();
-    }
+    if (!slots.A.ready) return;
+    if (isPlaying) pauseBoth(); else playBoth();
   }
-
-  function playVideo() {
-    videoBox.classList.remove('canvas-mode');
-    video.play();
+  function playBoth() {
+    slots.A.box.classList.remove('canvas-mode');
+    slots.B.box.classList.remove('canvas-mode');
+    alignBToA();
+    slots.A.video.play();
+    if (slots.B.ready) slots.B.video.play();
     isPlaying = true;
-    btnPlay.innerHTML = '⏸ 暂停 <span class="key">Space</span>';
+    $('btn-play').innerHTML = '⏸ 暂停 <span class="key">Space</span>';
   }
-
-  function pauseVideo() {
-    video.pause();
+  function pauseBoth() {
+    slots.A.video.pause();
+    if (slots.B.ready) slots.B.video.pause();
     isPlaying = false;
-    btnPlay.innerHTML = '▶ 播放 <span class="key">Space</span>';
-    videoBox.classList.add('canvas-mode');
-    requestAnimationFrame(function() { drawFrame(); });
+    $('btn-play').innerHTML = '▶ 播放 <span class="key">Space</span>';
+    slots.A.box.classList.add('canvas-mode');
+    slots.B.box.classList.add('canvas-mode');
+    requestAnimationFrame(function() { drawFrame(slots.A); if (slots.B.ready) drawFrame(slots.B); });
   }
 
-  // ========== 速度控制（仅点播）==========
-  speedBtns.forEach(function(btn) {
+  function stepBoth(n) {
+    if (!slots.A.ready || liveMode) return;
+    pauseBoth();
+    const target = clamp(slots.A.video.currentTime + n * frameDuration, 0, slots.A.video.duration);
+    slots.A.video.currentTime = target;
+    if (slots.B.ready) slots.B.video.currentTime = clamp(target, 0, slots.B.video.duration);
+  }
+  function seekToTime(t) {
+    if (!slots.A.ready || liveMode) return;
+    t = clamp(t, 0, slots.A.video.duration);
+    slots.A.video.currentTime = t;
+    if (slots.B.ready) slots.B.video.currentTime = clamp(t, 0, slots.B.video.duration);
+    if (!isPlaying) { slots.A.box.classList.add('canvas-mode'); slots.B.box.classList.add('canvas-mode'); }
+  }
+  function seekToFrame(f) {
+    if (!slots.A.ready || liveMode) return;
+    seekToTime(clamp(f, 0, slots.A.totalFrames) * frameDuration);
+  }
+
+  // ========== 速度 ==========
+  document.querySelectorAll('.speed-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
-      speedBtns.forEach(function(b) { b.classList.remove('active'); });
+      document.querySelectorAll('.speed-btn').forEach(function(b) { b.classList.remove('active'); });
       btn.classList.add('active');
-      video.playbackRate = parseFloat(btn.dataset.speed);
+      const r = parseFloat(btn.dataset.speed);
+      slots.A.video.playbackRate = r;
+      slots.B.video.playbackRate = r;
     });
   });
 
   // ========== 帧率 ==========
-  fpsInput.addEventListener('change', function() {
+  $('fps-input').addEventListener('change', function() {
     const v = parseInt(this.value, 10);
     if (v > 0 && v <= 120) {
       fps = v;
       frameDuration = 1 / fps;
-      if (video.duration) {
-        totalFrames = Math.ceil(video.duration * fps);
-      }
-      infoFps.textContent = fps + ' fps';
-      updateInfo();
+      ['A', 'B'].forEach(function(k) {
+        const s = slots[k];
+        if (s.video.duration) s.totalFrames = Math.ceil(s.video.duration * fps);
+        updateSlotInfo(s);
+      });
+      updateProgress();
     }
   });
 
-  // ========== 缩放 ==========
+  // ========== 缩放（整体缩放画面容器） ==========
   function setZoom(z) {
-    z = Math.max(0.25, Math.min(z, 4));
+    z = clamp(z, 0.25, 4);
     currentZoom = z;
-    const box = document.querySelector('.video-box');
-    box.style.maxWidth = (960 * z) + 'px';
-    zoomLevel.textContent = Math.round(z * 100) + '%';
+    $('stages').style.maxWidth = (1100 * z) + 'px';
+    $('zoom-level').textContent = Math.round(z * 100) + '%';
   }
+  $('btn-zoom-in').addEventListener('click', function() { setZoom(currentZoom + 0.25); });
+  $('btn-zoom-out').addEventListener('click', function() { setZoom(currentZoom - 0.25); });
+  $('btn-zoom-reset').addEventListener('click', function() { setZoom(1); });
 
-  btnZoomIn.addEventListener('click', function() { setZoom(currentZoom + 0.25); });
-  btnZoomOut.addEventListener('click', function() { setZoom(currentZoom - 0.25); });
-  btnZoomReset.addEventListener('click', function() { setZoom(1); });
-
-  // ========== 进度条点击（仅点播）==========
-  progressBar.addEventListener('click', function(e) {
-    if (!videoReady || liveMode) return;
-    const rect = progressBar.getBoundingClientRect();
+  // ========== 进度条点击 ==========
+  $('progress-bar').addEventListener('click', function(e) {
+    if (!slots.A.ready || liveMode) return;
+    const rect = this.getBoundingClientRect();
     const pct = (e.clientX - rect.left) / rect.width;
-    seekToTime(pct * video.duration);
+    seekToTime(pct * slots.A.video.duration);
   });
 
-  // ========== 时间轴（仅点播）==========
+  // ========== 时间轴缩略图（仅单视频） ==========
   function generateTimeline() {
     const count = 20;
-    const interval = video.duration / count;
+    const interval = slots.A.video.duration / count;
     timelineThumbs = [];
-    const w = timelineStrip.clientWidth;
-    const h = timelineStrip.clientHeight;
+    const strip = $('timeline-strip');
+    const w = strip.clientWidth, h = strip.clientHeight;
     timelineCanvas.width = w * 2;
     timelineCanvas.height = h * 2;
-    timelineCtx.scale(2, 2);
+    timelineCtx.setTransform(2, 0, 0, 2, 0, 0);
 
-    let loaded = 0;
-    const tempVideo = document.createElement('video');
-    tempVideo.src = video.src;
-    tempVideo.preload = 'auto';
-    tempVideo.muted = true;
-
+    const temp = document.createElement('video');
+    temp.src = slots.A.video.src;
+    temp.preload = 'auto';
+    temp.muted = true;
     const thumbW = w / count;
-    const thumbH = h;
 
-    tempVideo.addEventListener('loadedmetadata', function() {
-      captureNext(0);
-    });
-
-    function captureNext(i) {
-      if (i >= count) {
-        tempVideo.remove();
-        return;
-      }
-      tempVideo.currentTime = i * interval;
-      tempVideo.addEventListener('seeked', function handler() {
-        tempVideo.removeEventListener('seeked', handler);
-        timelineCtx.drawImage(tempVideo, i * thumbW, 0, thumbW, thumbH);
-        captureNext(i + 1);
+    temp.addEventListener('loadedmetadata', function() { capture(0); });
+    function capture(i) {
+      if (i >= count) { temp.remove(); return; }
+      temp.currentTime = i * interval;
+      temp.addEventListener('seeked', function handler() {
+        temp.removeEventListener('seeked', handler);
+        timelineCtx.drawImage(temp, i * thumbW, 0, thumbW, h);
+        capture(i + 1);
       });
     }
   }
-
-  timelineStrip.addEventListener('click', function(e) {
-    if (!videoReady || liveMode) return;
-    const rect = timelineStrip.getBoundingClientRect();
+  $('timeline-strip').addEventListener('click', function(e) {
+    if (!slots.A.ready || liveMode) return;
+    const rect = this.getBoundingClientRect();
     const pct = (e.clientX - rect.left) / rect.width;
-    seekToTime(pct * video.duration);
+    seekToTime(pct * slots.A.video.duration);
   });
 
-  // ========== 截帧 ==========
-  function screenshotFrame() {
-    if (!videoReady) return;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const dataUrl = canvas.toDataURL('image/png');
-    screenshotImg.src = dataUrl;
-    screenshotToast.style.display = 'flex';
-    setTimeout(function() { screenshotToast.style.display = 'none'; }, 3000);
+  // ========== 截图（双画面生成对比图） ==========
+  function screenshot() {
+    if (liveMode) {
+      // 直播截图（A）
+      drawFrame(slots.A);
+      const dataUrl = slots.A.canvas.toDataURL('image/png');
+      showShotToast(dataUrl);
+      downloadUrl(dataUrl, 'live_' + Date.now() + '.png');
+      return;
+    }
+    if (!slots.A.ready) return;
+
+    if (slots.B.ready) {
+      // 双画面对比图：A 左 B 右
+      drawFrame(slots.A); drawFrame(slots.B);
+      const aw = slots.A.canvas.width, ah = slots.A.canvas.height;
+      const bw = slots.B.canvas.width, bh = slots.B.canvas.height;
+      const gap = 6;
+      const outH = Math.max(ah, bh);
+      const outW = aw + gap + bw;
+      const out = document.createElement('canvas');
+      out.width = outW; out.height = outH;
+      const octx = out.getContext('2d');
+      octx.fillStyle = '#000';
+      octx.fillRect(0, 0, outW, outH);
+      octx.drawImage(slots.A.canvas, 0, (outH - ah) / 2);
+      octx.drawImage(slots.B.canvas, aw + gap, (outH - bh) / 2);
+      const dataUrl = out.toDataURL('image/png');
+      showShotToast(dataUrl);
+      downloadUrl(dataUrl, 'compare_' + currentFrame(slots.A) + '_' + formatTime(slots.A.video.currentTime).replace(/:/g, '-') + '.png');
+    } else {
+      drawFrame(slots.A);
+      const dataUrl = slots.A.canvas.toDataURL('image/png');
+      showShotToast(dataUrl);
+      downloadUrl(dataUrl, 'frame_' + currentFrame(slots.A) + '_' + formatTime(slots.A.video.currentTime).replace(/:/g, '-') + '.png');
+    }
+  }
+  function showShotToast(dataUrl) {
+    $('screenshot-img').src = dataUrl;
+    $('screenshot-toast').style.display = 'flex';
+    setTimeout(function() { $('screenshot-toast').style.display = 'none'; }, 3000);
+  }
+  function downloadUrl(dataUrl, name) {
     const a = document.createElement('a');
     a.href = dataUrl;
-    if (liveMode) {
-      a.download = 'live_' + Date.now() + '.png';
-    } else {
-      a.download = 'frame_' + getCurrentFrame() + '_' + formatTime(video.currentTime).replace(/:/g, '-') + '.png';
-    }
+    a.download = name;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
   }
 
   // ========== 按钮事件 ==========
-  btnPlay.addEventListener('click', togglePlay);
-  btnPrev.addEventListener('click', function() { stepFrame(-1); });
-  btnNext.addEventListener('click', function() { stepFrame(1); });
-  btnPrev10.addEventListener('click', function() { stepFrame(-10); });
-  btnNext10.addEventListener('click', function() { stepFrame(10); });
-  btnStart.addEventListener('click', function() { seekToFrame(0); });
-  btnEnd.addEventListener('click', function() { seekToFrame(totalFrames); });
-  btnScreenshot.addEventListener('click', screenshotFrame);
+  $('btn-play').addEventListener('click', togglePlay);
+  $('btn-prev').addEventListener('click', function() { stepBoth(-1); });
+  $('btn-next').addEventListener('click', function() { stepBoth(1); });
+  $('btn-prev-10').addEventListener('click', function() { stepBoth(-10); });
+  $('btn-next-10').addEventListener('click', function() { stepBoth(10); });
+  $('btn-start').addEventListener('click', function() { seekToFrame(0); });
+  $('btn-end').addEventListener('click', function() { seekToFrame(slots.A.totalFrames); });
+  $('btn-screenshot').addEventListener('click', screenshot);
 
-  // ========== 键盘快捷键 ==========
+  // ========== 加载区事件绑定 ==========
+  function bindLoadSlot(slotKey) {
+    const drop = $('drop-' + slotKey);
+    const fileInput = $('file-' + slotKey);
+    const urlInput = $('url-' + slotKey);
+    const loadBtn = $('load-btn-' + slotKey);
+
+    drop.addEventListener('click', function() { fileInput.click(); });
+    drop.addEventListener('dragover', function(e) { e.preventDefault(); drop.classList.add('dragover'); });
+    drop.addEventListener('dragleave', function() { drop.classList.remove('dragover'); });
+    drop.addEventListener('drop', function(e) {
+      e.preventDefault();
+      drop.classList.remove('dragover');
+      if (e.dataTransfer.files.length > 0) handleFileLoad(slotKey, e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener('change', function() {
+      if (this.files.length > 0) handleFileLoad(slotKey, this.files[0]);
+    });
+    loadBtn.addEventListener('click', function() { handleUrlLoad(slotKey); });
+    urlInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') handleUrlLoad(slotKey); });
+  }
+  bindLoadSlot('A');
+  bindLoadSlot('B');
+
+  // ========== 键盘 ==========
   document.addEventListener('keydown', function(e) {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     if (isTranscoding) return;
-    if (!videoReady) return;
+    if (!slots.A.ready) return;
 
     switch (e.key) {
-      case ' ':
-        e.preventDefault();
-        togglePlay();
-        break;
-      case 's':
-      case 'S':
-        e.preventDefault();
-        screenshotFrame();
-        break;
-      case '+':
-      case '=':
-        e.preventDefault();
-        setZoom(currentZoom + 0.25);
-        break;
-      case '-':
-      case '_':
-        e.preventDefault();
-        setZoom(currentZoom - 0.25);
-        break;
-      case 'ArrowLeft':
-        if (liveMode) break;
-        e.preventDefault();
-        stepFrame(e.shiftKey ? -10 : -1);
-        break;
-      case 'ArrowRight':
-        if (liveMode) break;
-        e.preventDefault();
-        stepFrame(e.shiftKey ? 10 : 1);
-        break;
-      case ',':
-        if (liveMode) break;
-        e.preventDefault();
-        stepFrame(-1);
-        break;
-      case '.':
-        if (liveMode) break;
-        e.preventDefault();
-        stepFrame(1);
-        break;
-      case 'Home':
-        if (liveMode) break;
-        e.preventDefault();
-        seekToFrame(0);
-        break;
-      case 'End':
-        if (liveMode) break;
-        e.preventDefault();
-        seekToFrame(totalFrames);
-        break;
+      case ' ': e.preventDefault(); togglePlay(); break;
+      case 's': case 'S': e.preventDefault(); screenshot(); break;
+      case '+': case '=': e.preventDefault(); setZoom(currentZoom + 0.25); break;
+      case '-': case '_': e.preventDefault(); setZoom(currentZoom - 0.25); break;
+      case 'ArrowLeft': if (liveMode) break; e.preventDefault(); stepBoth(e.shiftKey ? -10 : -1); break;
+      case 'ArrowRight': if (liveMode) break; e.preventDefault(); stepBoth(e.shiftKey ? 10 : 1); break;
+      case ',': if (liveMode) break; e.preventDefault(); stepBoth(-1); break;
+      case '.': if (liveMode) break; e.preventDefault(); stepBoth(1); break;
+      case 'Home': if (liveMode) break; e.preventDefault(); seekToFrame(0); break;
+      case 'End': if (liveMode) break; e.preventDefault(); seekToFrame(slots.A.totalFrames); break;
     }
   });
 
-  // ========== 鼠标滚轮缩放 ==========
-  videoBox.addEventListener('wheel', function(e) {
+  // 鼠标滚轮缩放
+  $('stages').addEventListener('wheel', function(e) {
     e.preventDefault();
-    if (e.deltaY < 0) {
-      setZoom(currentZoom + 0.1);
-    } else {
-      setZoom(currentZoom - 0.1);
-    }
+    setZoom(currentZoom + (e.deltaY < 0 ? 0.1 : -0.1));
   }, { passive: false });
 
 })();
